@@ -1,0 +1,8 @@
+{
+  // Cloudflare Workers Static Assets: source for the existing "labey" Worker.
+  "name": "labey",
+  "compatibility_date": "2026-11-08",
+  "assets": {
+    "directory": "./web"
+  }
+}

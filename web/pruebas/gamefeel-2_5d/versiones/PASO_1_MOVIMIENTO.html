@@ -1,0 +1,379 @@
+<!doctype html>
+<html lang="es-MX">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
+  <meta name="theme-color" content="#eaf1fa">
+  <title>LABEY · Prueba de movimiento</title>
+  <style>
+    :root {
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      color: #21324e;
+      background: #eaf1fa;
+    }
+
+    * { box-sizing: border-box; }
+    html, body { width: 100%; height: 100%; margin: 0; overflow: hidden; }
+    body { overscroll-behavior: none; user-select: none; -webkit-user-select: none; }
+
+    /* Piso sencillo de laboratorio: es CSS, no hay sprites ni imágenes externas. */
+    #game {
+      display: block;
+      width: 100vw;
+      height: 100dvh;
+      background-color: #eaf1fa;
+      background-image:
+        linear-gradient(90deg, #b8c9dd85 1px, transparent 1px),
+        linear-gradient(#b8c9dd85 1px, transparent 1px),
+        linear-gradient(135deg, #f9fcff 0%, #e3edf8 100%);
+      background-size: 96px 96px, 96px 96px, 100% 100%;
+      touch-action: none;
+    }
+
+    .topbar {
+      position: fixed;
+      top: max(16px, env(safe-area-inset-top));
+      left: max(16px, env(safe-area-inset-left));
+      right: max(16px, env(safe-area-inset-right));
+      display: flex;
+      align-items: start;
+      justify-content: space-between;
+      gap: 14px;
+      pointer-events: none;
+    }
+    .title { font-weight: 800; letter-spacing: .12em; font-size: 13px; }
+    .subtitle { margin-top: 4px; color: #687c9a; font-size: 12px; }
+    #speed { margin-top: 9px; font: 600 12px ui-monospace, monospace; color: #5e4599; }
+
+    #reset {
+      pointer-events: auto;
+      border: 1px solid #aebfdb;
+      border-radius: 12px;
+      background: #ffffffed;
+      color: #49377c;
+      font: 700 13px system-ui, sans-serif;
+      padding: 11px 16px;
+      min-height: 44px;
+      cursor: pointer;
+      box-shadow: 0 3px 12px #40567619;
+    }
+    #reset:active { transform: scale(.97); }
+    #reset:focus-visible { outline: 3px solid #885ae2; outline-offset: 3px; }
+
+    /* Joystick: Pointer Events funcionan con toque, lápiz y ratón. */
+    #joystick {
+      position: fixed;
+      bottom: max(26px, calc(env(safe-area-inset-bottom) + 20px));
+      left: max(24px, calc(env(safe-area-inset-left) + 16px));
+      width: 136px;
+      height: 136px;
+      border: 3px solid #9e8abf;
+      border-radius: 50%;
+      background: radial-gradient(circle, #ffffffc7 0 42%, #e2d9f4c9 75%, #bcb1d1b0 100%);
+      box-shadow: 0 5px 18px #39425d26, inset 0 0 0 7px #ffffff7a;
+      touch-action: none;
+      cursor: grab;
+      -webkit-tap-highlight-color: transparent;
+    }
+    #joystick:active { cursor: grabbing; }
+    #joystick::after {
+      content: "";
+      position: absolute;
+      inset: 15px;
+      border: 1px dashed #aa9bbd;
+      border-radius: 50%;
+      pointer-events: none;
+    }
+    #knob {
+      position: absolute;
+      left: 50%; top: 50%;
+      width: 56px; height: 56px;
+      margin-left: -28px; margin-top: -28px;
+      border-radius: 50%;
+      border: 3px solid #f8f6ff;
+      background: radial-gradient(circle at 35% 28%, #b7a1ef, #6d51ac);
+      box-shadow: 0 4px 12px #4c34734a;
+      transform: translate3d(0, 0, 0);
+      pointer-events: none;
+    }
+    .hint {
+      position: fixed;
+      bottom: max(34px, calc(env(safe-area-inset-bottom) + 26px));
+      right: max(20px, env(safe-area-inset-right));
+      max-width: 150px;
+      text-align: right;
+      color: #71819b;
+      font-size: 11px;
+      line-height: 1.5;
+      pointer-events: none;
+    }
+    @media (max-width: 380px) {
+      #joystick { width: 118px; height: 118px; }
+      #knob { width: 50px; height: 50px; margin: -25px 0 0 -25px; }
+      .hint { max-width: 118px; }
+    }
+  </style>
+</head>
+<body>
+  <canvas id="game" aria-label="Campo de prueba de movimiento"></canvas>
+
+  <div class="topbar">
+    <div>
+      <div class="title">LABEY // MOVIMIENTO</div>
+      <div class="subtitle">Prototipo de física · 8 direcciones</div>
+      <div id="speed" aria-live="off">0 px/s</div>
+    </div>
+    <button id="reset" type="button" aria-label="Regresar al centro">↺ Reset</button>
+  </div>
+
+  <div id="joystick" aria-label="Joystick virtual de movimiento">
+    <div id="knob"></div>
+  </div>
+  <div class="hint">Arrastra el círculo para moverte.<br>En PC: WASD o flechas.</div>
+
+  <script>
+    "use strict";
+
+    // ===== 1. Parámetros de Game Feel (ajustables) =====
+    const MAX_SPEED = 260;       // píxeles/segundo, sin turbo diagonal
+    const ACCELERATION = 1200;   // píxeles/segundo²
+    const FRICTION = 6.5;        // pérdida exponencial de velocidad al soltar
+    const DEAD_ZONE = 0.10;      // ignora pequeños toques cerca del centro
+    const SIZE = 32;             // cuadrado del jugador: 32 × 32
+
+    const canvas = document.getElementById("game");
+    const ctx = canvas.getContext("2d");
+    const stick = document.getElementById("joystick");
+    const knob = document.getElementById("knob");
+    const speedLabel = document.getElementById("speed");
+    const resetButton = document.getElementById("reset");
+
+    let screenWidth = 0;
+    let screenHeight = 0;
+    let firstResize = true;
+
+    const player = {
+      x: 0, y: 0,
+      vx: 0, vy: 0,
+      facing: -Math.PI / 2 // orientación inicial: arriba
+    };
+
+    // ===== 2. Canvas ajustado a pantalla y pantallas de alta densidad =====
+    function resizeCanvas() {
+      const previousW = screenWidth;
+      const previousH = screenHeight;
+      screenWidth = window.innerWidth;
+      screenHeight = window.innerHeight;
+      const dpr = Math.min(window.devicePixelRatio || 1, 2);
+      canvas.width = Math.round(screenWidth * dpr);
+      canvas.height = Math.round(screenHeight * dpr);
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+
+      if (firstResize) {
+        player.x = screenWidth / 2;
+        player.y = screenHeight / 2;
+        firstResize = false;
+      } else {
+        // Mantiene la misma posición relativa al centro al rotar el móvil.
+        player.x += (screenWidth - previousW) / 2;
+        player.y += (screenHeight - previousH) / 2;
+      }
+    }
+    window.addEventListener("resize", resizeCanvas);
+    resizeCanvas();
+
+    // ===== 3. Joystick virtual: toque + mouse con Pointer Events =====
+    let activePointer = null;
+    const joystickInput = { x: 0, y: 0 };
+
+    function moveJoystick(clientX, clientY) {
+      const bounds = stick.getBoundingClientRect();
+      const radius = bounds.width / 2 - knob.offsetWidth / 2 - 5;
+      const dx = clientX - (bounds.left + bounds.width / 2);
+      const dy = clientY - (bounds.top + bounds.height / 2);
+      const distance = Math.hypot(dx, dy);
+      const limited = Math.min(distance, radius);
+      const nx = distance > 0 ? dx / distance : 0;
+      const ny = distance > 0 ? dy / distance : 0;
+
+      knob.style.transform = `translate3d(${nx * limited}px, ${ny * limited}px, 0)`;
+
+      // Magnitud analógica de 0 a 1; se elimina la zona muerta.
+      const amount = Math.max(0, (limited / radius - DEAD_ZONE) / (1 - DEAD_ZONE));
+      joystickInput.x = nx * amount;
+      joystickInput.y = ny * amount;
+    }
+
+    function releaseJoystick(event) {
+      if (event && event.pointerId !== activePointer) return;
+      activePointer = null;
+      joystickInput.x = 0;
+      joystickInput.y = 0;
+      knob.style.transform = "translate3d(0, 0, 0)";
+    }
+
+    stick.addEventListener("pointerdown", (event) => {
+      if (activePointer !== null) return; // un dedo controla el joystick
+      event.preventDefault();
+      activePointer = event.pointerId;
+      stick.setPointerCapture(activePointer);
+      moveJoystick(event.clientX, event.clientY);
+    });
+    stick.addEventListener("pointermove", (event) => {
+      if (event.pointerId !== activePointer) return;
+      event.preventDefault();
+      moveJoystick(event.clientX, event.clientY);
+    });
+    stick.addEventListener("pointerup", releaseJoystick);
+    stick.addEventListener("pointercancel", releaseJoystick);
+    stick.addEventListener("lostpointercapture", releaseJoystick);
+
+    // ===== 4. Teclado opcional para probar desde PC =====
+    const pressed = new Set();
+    const directions = {
+      w: [0, -1], arrowup: [0, -1],
+      s: [0, 1], arrowdown: [0, 1],
+      a: [-1, 0], arrowleft: [-1, 0],
+      d: [1, 0], arrowright: [1, 0]
+    };
+
+    window.addEventListener("keydown", (event) => {
+      const key = event.key.toLowerCase();
+      if (directions[key]) {
+        event.preventDefault();
+        pressed.add(key);
+      }
+    });
+    window.addEventListener("keyup", (event) => pressed.delete(event.key.toLowerCase()));
+
+    function getInput() {
+      // Mientras se toca el joystick, éste tiene prioridad sobre el teclado.
+      if (activePointer !== null) return joystickInput;
+
+      let x = 0, y = 0;
+      for (const key of pressed) {
+        const [ax, ay] = directions[key];
+        x += ax;
+        y += ay;
+      }
+      // Normalizar evita que √2 aumente la velocidad diagonal.
+      const length = Math.hypot(x, y);
+      return length > 0 ? { x: x / length, y: y / length } : { x: 0, y: 0 };
+    }
+
+    // ===== 5. Física: delta time, aceleración, fricción y límite =====
+    function update(dt) {
+      const input = getInput();
+      const hasInput = Math.hypot(input.x, input.y) > 0;
+
+      if (hasInput) {
+        // Nos acercamos GRADUALMENTE a la velocidad deseada.
+        const targetVX = input.x * MAX_SPEED;
+        const targetVY = input.y * MAX_SPEED;
+        const differenceX = targetVX - player.vx;
+        const differenceY = targetVY - player.vy;
+        const distance = Math.hypot(differenceX, differenceY);
+        const change = Math.min(distance, ACCELERATION * dt);
+        if (distance > 0) {
+          player.vx += (differenceX / distance) * change;
+          player.vy += (differenceY / distance) * change;
+        }
+      } else {
+        // Fricción independiente de los FPS: deja un pequeño deslizamiento.
+        const damping = Math.exp(-FRICTION * dt);
+        player.vx *= damping;
+        player.vy *= damping;
+        if (Math.hypot(player.vx, player.vy) < 1) {
+          player.vx = 0;
+          player.vy = 0;
+        }
+      }
+
+      // Límite de velocidad total, también para el movimiento diagonal.
+      const speed = Math.hypot(player.vx, player.vy);
+      if (speed > MAX_SPEED) {
+        player.vx = (player.vx / speed) * MAX_SPEED;
+        player.vy = (player.vy / speed) * MAX_SPEED;
+      }
+
+      player.x += player.vx * dt;
+      player.y += player.vy * dt;
+
+      // Cuantización a 8 direcciones, usando la VELOCIDAD real.
+      // Si se detiene, mantenemos la última orientación sin cambiarla.
+      if (Math.hypot(player.vx, player.vy) > 2) {
+        const angle = Math.atan2(player.vy, player.vx);
+        player.facing = Math.round(angle / (Math.PI / 4)) * (Math.PI / 4);
+      }
+    }
+
+    // ===== 6. Render: solo geometría (cuadrado + indicador) =====
+    function draw() {
+      ctx.clearRect(0, 0, screenWidth, screenHeight);
+
+      // Sombra de referencia para leer el desplazamiento.
+      ctx.fillStyle = "#536a8f24";
+      ctx.fillRect(player.x - SIZE / 2 + 3, player.y - SIZE / 2 + 5, SIZE, SIZE);
+
+      // Personaje: cuadrado blanco de 32 × 32 píxeles.
+      ctx.fillStyle = "#ffffff";
+      ctx.fillRect(player.x - SIZE / 2, player.y - SIZE / 2, SIZE, SIZE);
+      ctx.strokeStyle = "#6c53a8";
+      ctx.lineWidth = 2;
+      ctx.strokeRect(player.x - SIZE / 2, player.y - SIZE / 2, SIZE, SIZE);
+
+      // Indicador violeta apuntando a una de las ocho direcciones.
+      const fx = Math.cos(player.facing);
+      const fy = Math.sin(player.facing);
+      ctx.beginPath();
+      ctx.moveTo(player.x, player.y);
+      ctx.lineTo(player.x + fx * 25, player.y + fy * 25);
+      ctx.strokeStyle = "#7a43d9";
+      ctx.lineWidth = 4;
+      ctx.lineCap = "round";
+      ctx.stroke();
+    }
+
+    // ===== 7. Game Loop real: requestAnimationFrame + delta time =====
+    let previousTime = 0;
+    function frame(timestamp) {
+      if (!previousTime) previousTime = timestamp;
+      // Limitar el salto tras volver de otra pestaña evita teletransportes.
+      const dt = Math.min((timestamp - previousTime) / 1000, 0.05);
+      previousTime = timestamp;
+      update(dt);
+      draw();
+      speedLabel.textContent = `${Math.round(Math.hypot(player.vx, player.vy))} px/s`;
+      requestAnimationFrame(frame);
+    }
+    requestAnimationFrame(frame);
+
+    // ===== 8. Reset y seguridad de entrada =====
+    function resetPlayer() {
+      player.x = screenWidth / 2;
+      player.y = screenHeight / 2;
+      player.vx = 0;
+      player.vy = 0;
+      player.facing = -Math.PI / 2;
+      pressed.clear();
+      if (activePointer !== null && stick.hasPointerCapture(activePointer)) {
+        stick.releasePointerCapture(activePointer);
+      }
+      releaseJoystick();
+      speedLabel.textContent = "0 px/s";
+    }
+    resetButton.addEventListener("click", resetPlayer);
+    window.addEventListener("blur", () => {
+      pressed.clear();
+      releaseJoystick();
+    });
+    document.addEventListener("visibilitychange", () => {
+      if (document.hidden) {
+        pressed.clear();
+        releaseJoystick();
+        previousTime = 0;
+      }
+    });
+  </script>
+</body>
+</html>

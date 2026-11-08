@@ -1,7 +1,7 @@
 # LABEY · Publicación web y archivo de Game Feel
 
 ## Rama principal
-- `web/index.html`: Paso 5.4.3 con gadgets originales, hitboxes por base, profundidad, dash animado, ataque direccional y controles táctiles ocultables con T.
+- `web/index.html`: Paso 5.4.4 con gadgets originales, hitboxes por base, profundidad, dash animado, ataque direccional y controles táctiles ocultables con T.
 - `web/assets/protagonista_caminar_v3.png` y `web/assets/protagonista_atacar_v3.png`: hojas existentes sin regeneración.
 - `web/labey-v0.4.html`: respaldo del prototipo anterior (no eliminar). Las imágenes originales de `web/assets/` también se conservan.
 - `web/pruebas/gamefeel-2_5d/`: archivos del laboratorio, pasos originales y documentación.
@@ -9,6 +9,9 @@
 ## Cómo servir
 La carpeta `web/` es la raíz de los archivos estáticos. `index.html` se sirve en `/` y los sprites WebP del protagonista y los gadgets en `/assets/`.
 Se puede probar localmente con un servidor estático gratuito, por ejemplo `python -m http.server 8000 --directory web`. No requiere APIs ni pagos.
+
+## Instalar en Android
+En Chrome, abre el juego y elige **Instalar** en el menú. El ícono de LABEY abre el juego en una ventana independiente, sin barra de direcciones.
 
 ## Cloudflare
 Objetivo de despliegue: Worker `labey` de `calimapo55.workers.dev`.

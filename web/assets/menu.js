@@ -11,15 +11,15 @@
   const controlsBtn = document.getElementById("menuControlsSetting");
   const backBtn = document.getElementById("menuOptionsBack");
   const returnBtn = document.getElementById("menuReturn");
-  const SAVE_KEY = "labey.demoPosition.v1";
+  const SAVE_KEY = "labey.demoPosition.v2";
   let open = true;
   let elapsed = 0;
   function read() {
     try {
       const value = JSON.parse(localStorage.getItem(SAVE_KEY));
-      if (value && value.version === 1 && Number.isFinite(value.x) &&
+      if (value && value.version === 2 && Number.isFinite(value.x) &&
           Number.isFinite(value.y) && Number.isFinite(value.facing) &&
-          value.x >= 0 && value.x <= 1 && value.y >= 0 && value.y <= 1) return value;
+          value.x >= 0 && value.x <= 864 && value.y >= 0 && value.y <= 1536) return value;
     } catch { /* Almacenamiento no disponible: la demo sigue funcionando. */ }
     return null;
   }
@@ -27,10 +27,12 @@
     if (open || screenWidth <= 0 || screenHeight <= 0) return;
     try {
       localStorage.setItem(SAVE_KEY, JSON.stringify({
-        version: 1,
-        x: Math.max(0, Math.min(1, player.x / screenWidth)),
-        y: Math.max(0, Math.min(1, player.y / screenHeight)),
-        facing: player.facing
+        version: 2,
+        x: player.x,
+        y: player.y,
+        facing: player.facing,
+        hasSword: window.labeyCalibration?.hasSword === true,
+        firstKill: window.labeyCalibration?.firstKill === true
       }));
     } catch { /* La persistencia es opcional para este prototipo. */ }
   }
@@ -73,10 +75,11 @@
     const saved = read();
     if (!saved) { refresh(); return; }
     resetPlayer();
-    const safe = getSafeSpawn(saved.x * screenWidth, saved.y * screenHeight);
+    const safe = getSafeSpawn(saved.x, saved.y);
     player.x = safe.x;
     player.y = safe.y;
     player.facing = saved.facing;
+    window.labeyCalibration?.restore(saved);
     close();
   });
   settingsBtn.addEventListener("click", () => {

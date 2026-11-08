@@ -34,3 +34,5 @@ El botón de ataque reproduce cuadros sin lógica de daño. No hay enemigos en e
 - 2026-11-08: se añadió `web/assets/menu.js` para Jugar, Continuar, Ajustes y retorno a menú sin recargar. El menú pausa la simulación. En PC, Esc abre el menú.
 - 2026-11-08: Continuar guarda **solo la posición/orientación de esta demo**, no un progreso de campaña; Nueva partida pide confirmación antes de reemplazar esa posición. Ajustes permite mostrar u ocultar controles táctiles. Se actualizó el color de PWA.
 - 2026-11-08: el arte WebP también se respaldó en Gaston como `MENU_PRINCIPAL.webp`.
+
+- 2026-11-08: Se integraron las imágenes aprobadas para las dos salas (despertar y calibración), junto con el spritesheet de cuatro estados de los blancos. Se añadió `web/assets/salas-jugables.js` para cámara vertical, colisiones, recogida de espada y 3 objetivos de 100 PV (−25 por golpe) con destrucción y reconstrucción infinita. Menú Continuar ahora guarda espada, progreso y coordenadas mundiales (v2; el guardado v1 permanece sin borrar). Se conservaron todas las hojas V3 y los archivos previos. Falta comprobar el despliegue en Cloudflare y las pruebas táctiles físicas.

@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
   <meta name="theme-color" content="#eaf1fa">
-  <title>LABEY · Paso 5.4.1 · Ataque y controles</title>
+  <title>LABEY · Paso 5.4.2 · Ataque y controles</title>
   <style>
     :root {
       font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
@@ -227,7 +227,7 @@
   <div class="topbar">
     <div>
       <div class="title">LABEY // MOVIMIENTO + DASH · 2.5D</div>
-      <div class="subtitle">Paso 5.4.1 · Gadgets y colisiones</div>
+      <div class="subtitle">Paso 5.4.2 · Gadgets y colisiones</div>
       <div id="speed" aria-live="off">0 px/s</div>
     </div>
     <div class="topActions">
@@ -255,15 +255,14 @@
     // ===== 1. Parámetros de Game Feel (ajustables) =====
     const MAX_SPEED = 260;       // píxeles/segundo, sin turbo diagonal
     const ACCELERATION = 1200;   // píxeles/segundo²
-    const FRICTION = 6.5;        // pérdida exponencial de velocidad al soltar
     const DEAD_ZONE = 0.10;      // ignora pequeños toques cerca del centro
     const SIZE = 32;             // cuadrado del jugador: 32 × 32
 
-    const DASH_SPEED = 780;      // impulso instantáneo en px/s
+    const DASH_SPEED = 624;      // impulso instantáneo en px/s
     const DASH_DURATION = 0.20;  // segundos invulnerable / en impulso
     const DASH_COOLDOWN = 0.80;  // segundos de recarga DESPUÉS del impulso
-    const DASH_EXIT_SPEED = 130; // deslizamiento al terminar el Dash
     const TRAIL_LIFETIME = 0.27; // segundos para desvanecer la estela
+    const TRAIL_OPACITY = 0.40;  // 60% menos intensidad que en el Paso 5.4.1
     const TRAIL_SPACING = 12;    // espacio entre los cuadrados de la estela
 
     // Variable GLOBAL deliberada. Podrá usarse en futuras colisiones.
@@ -295,6 +294,16 @@
     const ATTACK_FRAME_TIME = 0.11;
     const ATTACK_DURATION = 3 * ATTACK_FRAME_TIME;
     const SPRITE_SCALE = 0.40;
+    // El ataque frontal V3 tiene una silueta unos píxeles más alta.
+    const ATTACK_SPRITE_SCALE = [0.34, 0.36, 0.36, 0.36, 0.36, 0.36, 0.36, 0.36];
+    const WALK_FRAME_COUNT = 5;
+    // Empata los bordes del casco E reflejado con los del casco W en y=130.
+    // Cada entrada contiene [inicio E, ancho E, inicio W, ancho W].
+    const WEST_CROWN_SEAM = 130;
+    const WEST_CROWN = [
+      [136, 48, 135, 53], [141, 38, 137, 50], [138, 45, 136, 51],
+      [137, 46, 136, 50], [136, 48, 134, 54]
+    ];
     // Las hojas están alineadas al suelo: x=160, pies ~y=296.
     const SPRITE_PIVOT_X = 160;
     const SPRITE_PIVOT_Y = 296;
@@ -570,7 +579,7 @@
     }
 
     function spawnTrail(x, y) {
-      trail.push({ x, y, life: TRAIL_LIFETIME });
+      trail.push({ x, y, frame: currentSpriteFrame(), life: TRAIL_LIFETIME });
       // Límite defensivo: evita acumulación por FPS bajos o varios dashes.
       if (trail.length > 80) trail.splice(0, trail.length - 80);
     }
@@ -627,14 +636,8 @@
           player.vy += (differenceY / distance) * change;
         }
       } else {
-        // Fricción independiente de los FPS: deja un pequeño deslizamiento.
-        const damping = Math.exp(-FRICTION * dt);
-        player.vx *= damping;
-        player.vy *= damping;
-        if (Math.hypot(player.vx, player.vy) < 1) {
-          player.vx = 0;
-          player.vy = 0;
-        }
+        player.vx = 0;
+        player.vy = 0;
       }
 
       // Límite de velocidad total, también para el movimiento diagonal.
@@ -663,8 +666,7 @@
         const oldX = player.x, oldY = player.y;
         player.vx = dashDirection.x * DASH_SPEED;
         player.vy = dashDirection.y * DASH_SPEED;
-        // Durante el Dash se conserva la velocidad instantánea de 780 px/s,
-        // pero su desplazamiento está sujeto a las mismas paredes y gadgets.
+        // El impulso sigue sujeto a las mismas paredes y gadgets.
         const dashHit = moveWithCollisions(player.vx * dashDt, player.vy * dashDt, true);
 
         // Estela continua incluso a 20 FPS: muestreamos cada 12 px.
@@ -680,10 +682,8 @@
         if (dashRemaining === 0) {
           isInvulnerable = false;
           cooldownRemaining = DASH_COOLDOWN;
-          // En un impacto el Dash se corta en seco (sin inercia residual).
-          // Sin choque, conserva la velocidad de salida aprobada de 130 px/s.
-          player.vx = dashHit ? 0 : dashDirection.x * DASH_EXIT_SPEED;
-          player.vy = dashHit ? 0 : dashDirection.y * DASH_EXIT_SPEED;
+          player.vx = 0;
+          player.vy = 0;
         }
 
         const leftover = dt - dashDt;
@@ -929,27 +929,46 @@
 
     // Posición del sprite basada en el punto de contacto: sólo la base
     // participa en las colisiones físicas. El resto es volumen visual.
-    function drawSprite({image, row, col, pivot = [SPRITE_PIVOT_X, SPRITE_PIVOT_Y], mirror = false}, x, y, alpha = 1) {
+    function drawSprite({image, row, col, pivot = [SPRITE_PIVOT_X, SPRITE_PIVOT_Y], mirror = false, lean = 0}, x, y, alpha = 1) {
       if (!image.complete || !image.naturalWidth) return false;
-      const destSize = FRAME_SIZE * SPRITE_SCALE;
+      const scale = image === spriteAttack ? ATTACK_SPRITE_SCALE[row] : SPRITE_SCALE;
+      const sx = col * FRAME_SIZE, sy = row * FRAME_SIZE;
+      const dx = -pivot[0] * scale, dy = -pivot[1] * scale;
+      const size = FRAME_SIZE * scale;
       ctx.save();
       ctx.globalAlpha = alpha;
       ctx.imageSmoothingEnabled = true;
       ctx.imageSmoothingQuality = "high";
       ctx.translate(x, y);
+      if (lean) ctx.transform(1, 0, -lean, 1, 0, 0);
       if (mirror) ctx.scale(-1, 1);
-      ctx.drawImage(image,
-        col * FRAME_SIZE, row * FRAME_SIZE, FRAME_SIZE, FRAME_SIZE,
-        -pivot[0] * SPRITE_SCALE, -pivot[1] * SPRITE_SCALE,
-        destSize, destSize);
+      if (image === spriteWalk && row === 6) {
+        // La coronilla W viene cortada en la hoja. Recupera sólo la parte
+        // superior con el casco E para conservar el cuerpo y mano originales.
+        const [eastX, eastWidth, westX, westWidth] = WEST_CROWN[col];
+        const seam = WEST_CROWN_SEAM;
+        const crownHeight = seam * scale;
+        ctx.drawImage(image, sx, sy + seam, FRAME_SIZE, FRAME_SIZE - seam,
+          dx, dy + crownHeight, size, size - crownHeight);
+        const pad = 12;
+        const crownScale = scale * westWidth / eastWidth;
+        ctx.scale(-1, 1);
+        ctx.drawImage(image, sx + eastX - pad, 2 * FRAME_SIZE, eastWidth + 2 * pad, seam,
+          -(dx + (westX + westWidth) * scale) - pad * crownScale, dy,
+          (eastWidth + 2 * pad) * crownScale, crownHeight);
+      } else {
+        ctx.drawImage(image, sx, sy, FRAME_SIZE, FRAME_SIZE, dx, dy, size, size);
+      }
       ctx.restore();
       return true;
     }
 
     function currentSpriteFrame() {
       if (dashRemaining > 0) {
-        // Sin sprites nuevos: pose de caminata V3 durante el Dash.
-        return { image: spriteWalk, row: directionRow(player.facing), col: 2 };
+        const progress = 1 - dashRemaining / DASH_DURATION;
+        const col = Math.min(WALK_FRAME_COUNT - 1, Math.floor(progress * WALK_FRAME_COUNT));
+        return { image: spriteWalk, row: directionRow(player.facing), col,
+          lean: dashDirection.x * 0.15 };
       }
       const attackCol = attackFrameIndex();
       if (attackCol !== -1) {
@@ -961,7 +980,7 @@
           pivot: ATTACK_PIVOTS[row][attackCol], mirror: opposite !== undefined };
       }
       const walking = Math.hypot(player.vx, player.vy) > 3;
-      const col = walking ? Math.floor(walkTime / WALK_FRAME_TIME) % 5 : 0;
+      const col = walking ? Math.floor(walkTime / WALK_FRAME_TIME) % WALK_FRAME_COUNT : 0;
       return { image: spriteWalk, row: directionRow(player.facing), col };
     }
 
@@ -979,17 +998,6 @@
       ctx.ellipse(0, 0, SIZE * .65, 7, 0, 0, Math.PI * 2);
       ctx.fill();
       ctx.restore();
-
-      // Indicador anterior, ahora discretamente sobre el suelo.
-      const facing = attackRemaining > 0 ? attackFacing : player.facing;
-      const fx = Math.cos(facing), fy = Math.sin(facing);
-      ctx.beginPath();
-      ctx.moveTo(player.x, feetY);
-      ctx.lineTo(player.x + fx * 22, feetY + fy * 22);
-      ctx.strokeStyle = "rgba(122,67,217,.75)";
-      ctx.lineWidth = 3;
-      ctx.lineCap = "round";
-      ctx.stroke();
 
       const drawn = drawSprite(currentSpriteFrame(), player.x, feetY);
       // Fallback durante la carga / si los PNG no se encuentran.
@@ -1021,11 +1029,10 @@
       // Conservamos la estela púrpura, pero ahora contiene siluetas V3
       // que se desvanecen; no altera Dash ni sus hitboxes.
       for (const ghost of trail) {
-        const opacity = Math.pow(ghost.life / TRAIL_LIFETIME, 1.5);
+        const opacity = TRAIL_OPACITY * Math.pow(ghost.life / TRAIL_LIFETIME, 1.5);
         ctx.fillStyle = `rgba(126, 55, 222, ${opacity * .32})`;
         ctx.fillRect(ghost.x - SIZE/2, ghost.y - SIZE/2, SIZE, SIZE);
-        drawSprite({image: spriteWalk, row: directionRow(player.facing), col: 2},
-                   ghost.x, ghost.y, opacity * .34);
+        drawSprite(ghost.frame, ghost.x, ghost.y, opacity * .34);
       }
 
       const foreground = [];
@@ -1083,10 +1090,10 @@
         dashRemaining = 0;
         isInvulnerable = false;
         cooldownRemaining = DASH_COOLDOWN;
-        player.vx = dashDirection.x * DASH_EXIT_SPEED;
-        player.vy = dashDirection.y * DASH_EXIT_SPEED;
         refreshDashUI();
       }
+      player.vx = 0;
+      player.vy = 0;
     }
     window.addEventListener("blur", cancelInputs);
     document.addEventListener("visibilitychange", () => {

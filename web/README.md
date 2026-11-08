@@ -1,7 +1,7 @@
 # LABEY · Publicación web y archivo de Game Feel
 
 ## Rama principal
-- `web/index.html`: Paso 5.4.1 con gadgets originales, hitboxes por base, profundidad, dash, ataque direccional y controles táctiles ocultables con T.
+- `web/index.html`: Paso 5.4.2 con gadgets originales, hitboxes por base, profundidad, dash animado, ataque direccional y controles táctiles ocultables con T.
 - `web/assets/protagonista_caminar_v3.png` y `web/assets/protagonista_atacar_v3.png`: hojas existentes sin regeneración.
 - `web/labey-v0.4.html`: respaldo del prototipo anterior (no eliminar). Las imágenes originales de `web/assets/` también se conservan.
 - `web/pruebas/gamefeel-2_5d/`: archivos del laboratorio, pasos originales y documentación.
@@ -20,6 +20,7 @@ Los controles y la física se validaron previamente en Chromium simulado, pero f
 El botón de ataque reproduce cuadros sin lógica de daño. No hay enemigos en este módulo.
 
 ## Historial
+- 2026-11-08: Paso 5.4.2. Casco oeste recompuesto, escala de ataque ajustada, dash de 124.8 px con estela al 40% de su opacidad anterior, frenado inmediato e indicador de pies retirado.
 - 2026-11-08: pasos 1–3 archivados, commit `8a53519`.
 - 2026-11-08: Paso 4 colisiones respaldado en Gaston.
 - 2026-11-08: Paso 5 sprites V3 respaldado en Gaston; actualización del frontend de GitHub para prepararlo para Cloudflare.

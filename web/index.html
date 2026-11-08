@@ -5,9 +5,43 @@
 <title>Labey Blacksmith · Interfaz móvil</title>
 <style>
 *{box-sizing:border-box}body{margin:0;background:#101324;color:#f1efff;font:15px system-ui,sans-serif}main{max-width:1050px;margin:auto;padding:14px max(14px,env(safe-area-inset-right)) 14px max(14px,env(safe-area-inset-left))}header{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:10px}h1{font-size:clamp(16px,3vw,24px);margin:0}small{color:#c3b8ed}nav{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:10px}button{font:inherit;color:inherit;background:#27263f;border:1px solid #67618f;border-radius:10px;padding:9px 12px;min-height:44px;cursor:pointer}button[aria-pressed=true]{background:#553893;border-color:#cbb1ff}button:focus-visible{outline:3px solid #ffdf94;outline-offset:2px}.arena{position:relative;isolation:isolate;overflow:hidden;aspect-ratio:2.15;min-height:235px;background:linear-gradient(170deg,#161a34 23%,#8593ac 24%,#d3e0ef 25%);border:1px solid #777b9b;border-radius:16px}.floor{position:absolute;inset:28% 0 0;background:repeating-linear-gradient(30deg,transparent 0 38px,#7e93ae55 39px 40px),repeating-linear-gradient(150deg,transparent 0 38px,#7e93ae55 39px 40px)}.hud,.orb,.stick{position:absolute;background:#19162de8}.hud{top:10px;left:10px;border-radius:10px;padding:8px 10px}.hud meter{width:66px;height:12px;vertical-align:middle;accent-color:#b38aff}.pause{position:absolute;top:10px;right:10px}.orb{right:14px;bottom:12px;border:2px solid #b38aff;width:66px;height:66px;border-radius:50%;font-size:29px;touch-action:none}.interact{position:absolute;right:13px;bottom:86px;background:#272046}.stick{bottom:8px;left:10px;width:102px;height:83px;border-radius:50%;border:1px solid #7465a1;touch-action:none}.knob{position:absolute;left:50%;top:50%;width:36px;height:36px;border-radius:50%;background:#b39de3;transform:translate(-50%,-50%);pointer-events:none}.actor{position:absolute;transform:translate(-50%,-50%);width:44px;height:42px;text-align:center;border-radius:14px;background:#302054;border:4px solid #fff;color:#e6d5ff;box-shadow:0 5px 0 #24263d50;font-weight:900;line-height:30px;pointer-events:none}.actor.hit{outline:5px solid #a268ff}.enemy{left:67%;top:48%;border-color:#322b40;background:#161522;color:#ff9791}.danger{position:absolute;left:67%;top:51%;transform:translate(-50%,-50%);width:20%;aspect-ratio:1.7;border-radius:50%;background:#fa655755;border:2px solid #bf3636}.npc{position:absolute;left:59%;top:51%;transform:translate(-50%,-50%);background:#174c52;color:white;padding:8px;border-radius:8px}.overlay{position:absolute;inset:0;background:#101324d9;display:grid;place-items:center;padding:10px}.card{padding:12px;text-align:center}.card h2{margin:0 0 10px}.card button{margin:3px}.note{margin:7px 0 0;color:#d4caef;font-size:13px}[hidden]{display:none!important}@media(orientation:landscape) and (max-height:460px){main{padding-top:7px;padding-bottom:7px}header,nav{margin-bottom:6px}.arena{height:calc(100dvh - 112px);aspect-ratio:auto}}
+
+/* Orbital controls. The outer rings are decorative; the full buttons are touch targets. */
+.control,.stick{
+  --accent:#ad65ff;
+  --rim:#9e8fcc;
+  background:radial-gradient(circle,#17182e 57%,#393451 59%,#24223d 65%,#17172d 67%);
+  border:2px solid var(--rim);
+  box-shadow:inset 0 0 0 4px #18182d,0 2px 7px #13112470;
+  color:#faf8ff;
+}
+.control{
+  display:grid;place-items:center;padding:0;min-width:48px;min-height:48px;
+  touch-action:manipulation;isolation:isolate;
+}
+.control::before,.stick::before{
+  content:"";position:absolute;inset:5px;border-radius:inherit;pointer-events:none;
+  border:2px solid transparent;border-top-color:var(--accent);border-bottom-color:var(--accent);
+  transform:rotate(-32deg);
+}
+.control::after{
+  content:"";position:absolute;inset:10px;border-radius:inherit;pointer-events:none;
+  border:1px solid #a695cc80;
+}
+.control svg{width:53%;height:53%;z-index:1;pointer-events:none}
+.control:active{filter:brightness(1.35)}
+.orb{width:72px;height:72px;right:12px;bottom:12px}
+.dodge{--accent:#46e8f9;position:absolute;width:52px;height:52px;right:94px;bottom:28px;border-radius:50%}
+.pause.control{--accent:#46e8f9;width:48px;height:48px;border-radius:50%;font-size:19px}
+.interact.control{height:48px;padding:0 14px;bottom:98px;border-radius:10px}
+.interact.control::after{display:none}
+.stick{width:92px;height:92px;bottom:10px;left:12px}
+.stick svg{position:absolute;inset:8px;width:calc(100% - 16px);height:calc(100% - 16px);pointer-events:none}
+.knob{background:#49426d;border:2px solid #9382bc;box-shadow:0 2px 5px #100e2580}
+.player.dashing{box-shadow:-5px 0 0 #4ceafb85,0 5px 0 #24263d50}
 </style>
 <main>
-<header><h1>Labey Blacksmith</h1><small>Interfaz móvil · v0.1</small></header>
+<header><h1>Labey Blacksmith</h1><small>Interfaz móvil · v0.2</small></header>
 <nav aria-label="Frames de prueba">
 <button data-frame="combat" aria-pressed="true">Combate</button>
 <button data-frame="npc" aria-pressed="false">Sala NPC</button>
@@ -17,21 +51,24 @@
 <div class="floor"></div><div class="danger"></div><div class="actor enemy" aria-label="Enemigo">◆</div><div class="npc" hidden>NPC</div>
 <div class="actor player" aria-label="Labey">● ●</div>
 <div class="hud">♥ <meter aria-label="Vida de Labey" min="0" max="100" value="70"></meter> <span id="life">70 / 100</span></div>
-<button class="pause" aria-label="Pausar">Ⅱ</button>
-<div class="stick" aria-label="Joystick táctil"><div class="knob"></div></div>
-<button class="orb" aria-label="Atacar">⚔</button>
-<button class="interact" hidden>Interactuar</button>
+<button class="pause control" aria-label="Pausar">Ⅱ</button>
+<div class="stick" aria-label="Joystick táctil"><svg aria-hidden="true" viewBox="0 0 64 64"><path d="M32 3v5m0 48v5M3 32h5m48 0h5M11 11l4 4m34 34 4 4m0-42-4 4m-34 34-4 4" stroke="#e3dafa" stroke-width="2" fill="none"/></svg><div class="knob"></div></div>
+<button class="orb control" aria-label="Atacar"><svg aria-hidden="true" viewBox="0 0 48 48"><path fill="currentColor" d="M17 27 35 7 46 3 43 15 23 34zM7 27l8 2 4 7 7 2-2 6-8-4-6 7H4v-6l7-7z"/><path fill="#a13bff" d="M21 27 37 10l5-2-2 5-17 17z"/></svg></button>
+<button class="dodge control" aria-label="Esquivar"><svg aria-hidden="true" viewBox="0 0 48 48"><path fill="currentColor" d="M5 11h8l12 13-12 13H5l12-13zm17 0h8l12 13-12 13h-8l12-13z"/></svg></button>
+<button class="interact control" hidden>Interactuar</button>
 <div class="overlay" hidden><div class="card"><h2></h2><div class="actions"></div></div></div>
 </section>
-<p class="note" role="status">Mueve a Labey con el joystick o WASD. Ataque con ⚔ o espacio.</p>
+<p class="note" role="status">Mueve a Labey con el joystick o WASD. Espacio para atacar. Mayús para esquivar.</p>
 </main>
 <script>
 const $ = selector => document.querySelector(selector);
 const player = $('.player'), stick = $('.stick'), knob = $('.knob'), overlay = $('.overlay');
+const dodge = $('.dodge');
 const arena = $('.arena'), note = $('.note'), interact = $('.interact');
 const tabs = [...document.querySelectorAll('[data-frame]')];
 let scene = 'combat', panel = '', life = 70, reward = '', x = 42, y = 54;
 let dx = 0, dy = 0, pointer = null, attackTimer;
+let facingX = 1, facingY = 0, dashLeft = 0, dashX = 0, dashY = 0;
 const keys = new Set();
 const directions = {w:[0,-1], a:[-1,0], s:[0,1], d:[1,0]};
 function update() {
@@ -44,9 +81,14 @@ function update() {
 }
 function say(message) { note.textContent = message; }
 function stop() {
+  releaseStick();
+  dashLeft = 0;
+  player.classList.remove('dashing');
+  keys.clear();
+}
+function releaseStick() {
   pointer = null;
   dx = dy = 0;
-  keys.clear();
   knob.style.left = knob.style.top = '50%';
   knob.style.translate = '0px 0px';
 }
@@ -54,14 +96,17 @@ function tabState() {
   tabs.forEach(button => button.setAttribute('aria-pressed', button.dataset.frame === (panel === 'pause' ? 'pause' : scene)));
 }
 function selectScene(next) {
+  stop();
   closePanel();
   scene = next;
   x = next === 'npc' ? 48 : 42;
   y = 54;
   $('.enemy').hidden = $('.danger').hidden = next !== 'combat';
   $('.npc').hidden = next !== 'npc';
-  $('.orb').hidden = next !== 'combat';
-  say(next === 'combat' ? 'Mueve a Labey con el joystick o WASD. Ataque con ⚔ o espacio.' : reward || 'Acércate al NPC y toca Interactuar.');
+  $('.orb').hidden = dodge.hidden = next !== 'combat';
+  facingX = 1;
+  facingY = 0;
+  say(next === 'combat' ? 'Mueve a Labey con el joystick o WASD. Espacio para atacar. Mayús para esquivar.' : reward || 'Acércate al NPC y toca Interactuar.');
   tabState();
   update();
 }
@@ -108,6 +153,24 @@ function attack() {
   attackTimer = setTimeout(() => player.classList.remove('hit'), 180);
   say('Ataque activado.');
 }
+function movement() {
+  let vx = dx, vy = dy;
+  for (const key of keys) {
+    vx += directions[key][0];
+    vy += directions[key][1];
+  }
+  const magnitude = Math.hypot(vx, vy);
+  return magnitude ? [vx / magnitude, vy / magnitude] : [0, 0];
+}
+function evade() {
+  if (panel || scene !== 'combat' || dashLeft > 0) return;
+  const [vx, vy] = movement();
+  [dashX, dashY] = vx || vy ? [vx, vy] : [facingX, facingY];
+  dashLeft = 0.14;
+  player.classList.add('dashing');
+  say('Esquiva activada.');
+}
+dodge.onclick = evade;
 $('.orb').onclick = attack;
 $('.pause').onclick = pause;
 tabs.forEach(button => button.onclick = () => button.dataset.frame === 'pause' ? pause() : selectScene(button.dataset.frame));
@@ -132,13 +195,14 @@ stick.onpointermove = event => {
   knob.style.translate = Math.round(dx * Math.min(distance,24)) + 'px ' + Math.round(dy * Math.min(distance,24)) + 'px';
 };
 stick.onpointerup = stick.onpointercancel = stick.onlostpointercapture = event => {
-  if (event.pointerId === pointer) stop();
+  if (event.pointerId === pointer) releaseStick();
 };
 addEventListener('keydown', event => {
   if (event.key === 'Escape') { panel ? closePanel() : pause(); return; }
   if (panel) return;
   const key = event.key.toLowerCase();
-  if (directions[key]) keys.add(key);
+  if (Object.hasOwn(directions, key)) keys.add(key);
+  if (key === 'shift' && !event.repeat) evade();
   if (key === ' ' && event.target.tagName !== 'BUTTON') { event.preventDefault(); if (!event.repeat) attack(); }
 });
 addEventListener('keyup', event => keys.delete(event.key.toLowerCase()));
@@ -147,12 +211,16 @@ let last = 0;
 function tick(time) {
   const dt = Math.min(32, time - last) / 1000;
   last = time;
-  let vx = dx, vy = dy;
-  for (const key of keys) { vx += directions[key][0]; vy += directions[key][1]; }
-  const magnitude = Math.hypot(vx,vy);
-  if (!panel && magnitude) {
-    x = Math.max(8, Math.min(92, x + vx / magnitude * 130 * dt / arena.clientWidth * 100));
-    y = Math.max(37, Math.min(78, y + vy / magnitude * 130 * dt / arena.clientHeight * 100));
+  const [vx, vy] = movement();
+  if (!panel && (dashLeft > 0 || vx || vy)) {
+    const dashing = dashLeft > 0;
+    const step = dashing ? 560 * Math.min(dt, dashLeft) : 130 * dt;
+    facingX = dashing ? dashX : vx;
+    facingY = dashing ? dashY : vy;
+    x = Math.max(8, Math.min(92, x + facingX * step / arena.clientWidth * 100));
+    y = Math.max(37, Math.min(78, y + facingY * step / arena.clientHeight * 100));
+    dashLeft = Math.max(0, dashLeft - dt);
+    if (!dashLeft) player.classList.remove('dashing');
     update();
   }
   requestAnimationFrame(tick);

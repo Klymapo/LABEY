@@ -6,8 +6,8 @@
   "start_url": "/",
   "scope": "/",
   "display": "standalone",
-  "background_color": "#eaf1fa",
-  "theme_color": "#eaf1fa",
+  "background_color": "#19152f",
+  "theme_color": "#19152f",
   "icons": [
     {
       "src": "/assets/labey-icon-192.png",

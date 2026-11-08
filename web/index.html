@@ -4,8 +4,9 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
   <link rel="manifest" href="/labey.webmanifest">
-  <meta name="theme-color" content="#eaf1fa">
-  <title>LABEY · Paso 5.4.4 · Ataque y controles</title>
+  <link rel="stylesheet" href="/assets/menu.css">
+  <meta name="theme-color" content="#19152f">
+  <title>LABEY · Blacksmith</title>
   <style>
     :root {
       font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
@@ -222,8 +223,24 @@
     }
   </style>
 </head>
-<body>
+<body class="menu-open">
   <canvas id="game" aria-label="Campo isométrico de prueba con movimiento y dash"></canvas>
+  <section id="mainMenu" aria-label="Menú principal de LABEY" role="dialog" aria-modal="true">
+    <img id="menuArtwork" src="/assets/menu-principal.webp" width="720" height="1280" alt="" aria-hidden="true" fetchpriority="high">
+    <div id="menuShade" aria-hidden="true"></div>
+    <nav id="menuButtons" aria-label="Opciones del juego">
+      <button id="menuContinue" class="menuButton primary" type="button" hidden>CONTINUAR</button>
+      <button id="menuStart" class="menuButton primary" type="button">JUGAR</button>
+      <button id="menuSettings" class="menuButton" type="button">AJUSTES</button>
+    </nav>
+    <section id="menuOptions" aria-label="Ajustes y controles" hidden>
+      <h2>AJUSTES</h2>
+      <button id="menuControlsSetting" class="menuButton" type="button">CONTROLES TÁCTILES: SÍ</button>
+      <p>Móvil: joystick para moverte, ATACAR para usar la espada y DASH para esquivar.</p>
+      <p>PC: WASD o flechas · J/F atacar · Espacio/Shift dash · Esc menú.</p>
+      <button id="menuOptionsBack" class="menuButton" type="button">VOLVER</button>
+    </section>
+  </section>
 
   <div class="topbar">
     <div>
@@ -232,6 +249,7 @@
       <div id="speed" aria-live="off">0 px/s</div>
     </div>
     <div class="topActions">
+      <button id="menuReturn" type="button" aria-label="Abrir menú principal">☰ MENÚ</button>
       <button id="reset" type="button" aria-label="Regresar al centro">↺ Reset</button>
       <button id="hitboxToggle" type="button" aria-pressed="false">MOSTRAR HITBOXES</button>
       <button id="touchToggle" type="button" aria-controls="touchControls" aria-keyshortcuts="T">OCULTAR CONTROLES TÁCTILES</button>
@@ -517,6 +535,8 @@
 
     window.addEventListener("keydown", (event) => {
       const key = event.key.toLowerCase();
+      if (key === "escape") { event.preventDefault(); window.labeyMenu?.escape(); return; }
+      if (window.labeyMenu?.isOpen()) return;
       if (key === "t" && !event.repeat && !event.ctrlKey && !event.altKey && !event.metaKey) {
         event.preventDefault();
         toggleTouchControls();
@@ -1041,9 +1061,12 @@
       // Limitar el salto tras volver de otra pestaña evita teletransportes.
       const dt = Math.min((timestamp - previousTime) / 1000, 0.05);
       previousTime = timestamp;
-      update(dt);
-      draw();
-      speedLabel.textContent = `${Math.round(Math.hypot(player.vx, player.vy))} px/s`;
+      if (!window.labeyMenu?.isOpen()) {
+        update(dt);
+        draw();
+        speedLabel.textContent = `${Math.round(Math.hypot(player.vx, player.vy))} px/s`;
+        window.labeyMenu?.tick(dt);
+      }
       requestAnimationFrame(frame);
     }
     requestAnimationFrame(frame);
@@ -1086,10 +1109,12 @@
     window.addEventListener("blur", cancelInputs);
     document.addEventListener("visibilitychange", () => {
       if (document.hidden) {
+        window.labeyMenu?.save();
         cancelInputs();
         previousTime = 0;
       }
     });
   </script>
+  <script src="/assets/menu.js"></script>
 </body>
 </html>

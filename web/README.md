@@ -1,7 +1,7 @@
 # LABEY · Publicación web y archivo de Game Feel
 
 ## Rama principal
-- `web/index.html`: Paso 5.4.4 con gadgets originales, hitboxes por base, profundidad, dash animado, ataque direccional y controles táctiles ocultables con T.
+- `web/index.html`: menú principal con ilustración oficial, controles de inicio y el Paso 5.4.4 intacto (gadgets, hitboxes, dash, ataque y controles táctiles).
 - `web/assets/protagonista_caminar_v3.png` y `web/assets/protagonista_atacar_v3.png`: hojas existentes sin regeneración.
 - `web/labey-v0.4.html`: respaldo del prototipo anterior (no eliminar). Las imágenes originales de `web/assets/` también se conservan.
 - `web/pruebas/gamefeel-2_5d/`: archivos del laboratorio, pasos originales y documentación.
@@ -28,3 +28,9 @@ El botón de ataque reproduce cuadros sin lógica de daño. No hay enemigos en e
 - 2026-11-08: pasos 1–3 archivados, commit `8a53519`.
 - 2026-11-08: Paso 4 colisiones respaldado en Gaston.
 - 2026-11-08: Paso 5 sprites V3 respaldado en Gaston; actualización del frontend de GitHub para prepararlo para Cloudflare.
+
+## Registro de cambios
+- 2026-11-08: se añadió `web/assets/menu-principal.webp`, portada oficial proporcionada (720 × 1280, WebP optimizado), y `web/assets/menu.css` para los botones compactos de inicio en vertical.
+- 2026-11-08: se añadió `web/assets/menu.js` para Jugar, Continuar, Ajustes y retorno a menú sin recargar. El menú pausa la simulación. En PC, Esc abre el menú.
+- 2026-11-08: Continuar guarda **solo la posición/orientación de esta demo**, no un progreso de campaña; Nueva partida pide confirmación antes de reemplazar esa posición. Ajustes permite mostrar u ocultar controles táctiles. Se actualizó el color de PWA.
+- 2026-11-08: el arte WebP también se respaldó en Gaston como `MENU_PRINCIPAL.webp`.

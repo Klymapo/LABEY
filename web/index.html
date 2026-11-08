@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
   <meta name="theme-color" content="#eaf1fa">
-  <title>LABEY · Paso 5.4.2 · Ataque y controles</title>
+  <title>LABEY · Paso 5.4.3 · Ataque y controles</title>
   <style>
     :root {
       font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
@@ -227,7 +227,7 @@
   <div class="topbar">
     <div>
       <div class="title">LABEY // MOVIMIENTO + DASH · 2.5D</div>
-      <div class="subtitle">Paso 5.4.2 · Gadgets y colisiones</div>
+      <div class="subtitle">Paso 5.4.3 · Gadgets y colisiones</div>
       <div id="speed" aria-live="off">0 px/s</div>
     </div>
     <div class="topActions">
@@ -826,8 +826,9 @@
       return hitX || hitY;
     }
 
-    function drawHitboxes(attack) {
+    function drawHitboxes() {
       if (!showHitboxes) return;
+      const attack = getAttackHitbox();
       ctx.save();
       ctx.strokeStyle = "rgba(255, 0, 0, .8)";
       ctx.lineWidth = 2;
@@ -1007,25 +1008,11 @@
         ctx.strokeStyle = "#6c53a8";
         ctx.strokeRect(player.x - SIZE/2, player.y - SIZE/2, SIZE, SIZE);
       }
-      if (isInvulnerable) {
-        ctx.save();
-        ctx.strokeStyle = "rgba(177,77,255,.75)";
-        ctx.lineWidth = 2;
-        ctx.beginPath();
-        ctx.ellipse(player.x, feetY - 24, 27, 43, 0, 0, Math.PI * 2);
-        ctx.stroke();
-        ctx.restore();
-      }
     }
 
     function draw() {
       ctx.clearRect(0, 0, screenWidth, screenHeight);
       drawIsometricFloor();
-      const attack = getAttackHitbox();
-      if (attack && !showHitboxes) {
-        fillPolygon(attack, "rgba(126, 54, 230, .09)", "rgba(120, 46, 211, .35)");
-      }
-
       // Conservamos la estela púrpura, pero ahora contiene siluetas V3
       // que se desvanecen; no altera Dash ni sus hitboxes.
       for (const ghost of trail) {
@@ -1043,7 +1030,7 @@
       drawPlayer();
       for (const layout of foreground) drawGadget(layout);
       // Debug se dibuja encima SOLO si se solicita; no cambia Y-sorting.
-      drawHitboxes(attack);
+      drawHitboxes();
     }
 
     // ===== 8. Game Loop real: requestAnimationFrame + delta time =====

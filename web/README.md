@@ -1,13 +1,13 @@
 # LABEY · Publicación web y archivo de Game Feel
 
 ## Rama principal
-- `web/index.html`: Paso 5, sprites V3 del protagonista (8 direcciones, caminar y atacar), movimiento táctil, Dash, mapa con límites, hitboxes en la base de cuatro cajas, deslizarse por bordes, sombras, Y-sorting y Debug.
+- `web/index.html`: Paso 5.4.1 con gadgets originales, hitboxes por base, profundidad, dash, ataque direccional y controles táctiles ocultables con T.
 - `web/assets/protagonista_caminar_v3.png` y `web/assets/protagonista_atacar_v3.png`: hojas existentes sin regeneración.
 - `web/labey-v0.4.html`: respaldo del prototipo anterior (no eliminar). Las imágenes originales de `web/assets/` también se conservan.
 - `web/pruebas/gamefeel-2_5d/`: archivos del laboratorio, pasos originales y documentación.
 
 ## Cómo servir
-La carpeta `web/` es la raíz de los archivos estáticos. `index.html` se sirve en `/` y las dos hojas de sprites en `/assets/`.
+La carpeta `web/` es la raíz de los archivos estáticos. `index.html` se sirve en `/` y los sprites WebP del protagonista y los gadgets en `/assets/`.
 Se puede probar localmente con un servidor estático gratuito, por ejemplo `python -m http.server 8000 --directory web`. No requiere APIs ni pagos.
 
 ## Cloudflare

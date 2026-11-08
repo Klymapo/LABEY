@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
   <meta name="theme-color" content="#eaf1fa">
-  <title>LABEY · Paso 5 · Sprites V3 + Dash + Hitboxes</title>
+  <title>LABEY · Paso 5.4.1 · Ataque y controles</title>
   <style>
     :root {
       font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
@@ -16,7 +16,7 @@
     html, body { width: 100%; height: 100%; margin: 0; overflow: hidden; }
     body { overscroll-behavior: none; user-select: none; -webkit-user-select: none; }
 
-    /* El suelo y las cajas se dibujan en Canvas. Las hojas V3 reales
+    /* El suelo y los gadgets se dibujan en Canvas. Las hojas V3 reales
        se recortan por fotograma con drawImage, sin generar arte nuevo. */
     #game {
       display: block;
@@ -28,6 +28,7 @@
 
     .topbar {
       position: fixed;
+      z-index: 1;
       top: max(16px, env(safe-area-inset-top));
       left: max(16px, env(safe-area-inset-left));
       right: max(16px, env(safe-area-inset-right));
@@ -55,7 +56,7 @@
       cursor: pointer;
       box-shadow: 0 3px 12px #40567619;
     }
-    #hitboxToggle {
+    #hitboxToggle, #touchToggle {
       pointer-events: auto;
       padding: 8px 10px;
       min-height: 40px;
@@ -67,17 +68,28 @@
       font: 750 11px system-ui, sans-serif;
       cursor: pointer;
     }
+    #touchToggle { border-color: #9e8abf; color: #49377c; }
+    #touchToggle:focus-visible { outline: 3px solid #885ae2; outline-offset: 2px; }
+    #touchControls[hidden] { display: none; }
     #hitboxToggle[aria-pressed="true"] { background: #a83232; color: white; }
     #hitboxToggle:focus-visible { outline: 3px solid #cc3939; outline-offset: 2px; }
     @media (min-width: 700px) { .topActions { flex-direction: row; align-items: start; } }
     @media (max-width: 380px) {
       .topbar { gap: 8px; }
-      #hitboxToggle { max-width: 128px; font-size: 10px; }
+      #hitboxToggle, #touchToggle { max-width: 128px; font-size: 10px; }
       #reset { padding: 8px 11px; }
       .title { font-size: 11px; }
     }
     #reset:active { transform: scale(.97); }
     #reset:focus-visible { outline: 3px solid #885ae2; outline-offset: 3px; }
+
+    #game[hidden] { display: none; }
+    #canvasError, noscript {
+      position: fixed;
+      inset: 45% 1rem auto;
+      z-index: 2;
+      text-align: center;
+    }
 
     /* Joystick: Pointer Events funcionan con toque, lápiz y ratón. */
     #joystick {
@@ -197,7 +209,7 @@
       pointer-events: none;
     }
     @media (max-width: 600px) {
-      .hint { display: none; } /* evita tapar cajas y controles en móviles */
+      .hint { display: none; } /* evita tapar gadgets y controles en móviles */
     }
     @media (max-width: 380px) {
       #joystick { width: 118px; height: 118px; }
@@ -215,23 +227,28 @@
   <div class="topbar">
     <div>
       <div class="title">LABEY // MOVIMIENTO + DASH · 2.5D</div>
-      <div class="subtitle">Paso 5 · Labey V3 · Dash y colisiones</div>
+      <div class="subtitle">Paso 5.4.1 · Gadgets y colisiones</div>
       <div id="speed" aria-live="off">0 px/s</div>
     </div>
     <div class="topActions">
       <button id="reset" type="button" aria-label="Regresar al centro">↺ Reset</button>
       <button id="hitboxToggle" type="button" aria-pressed="false">MOSTRAR HITBOXES</button>
+      <button id="touchToggle" type="button" aria-controls="touchControls" aria-keyshortcuts="T">OCULTAR CONTROLES TÁCTILES</button>
     </div>
   </div>
 
-  <div id="joystick" aria-label="Joystick virtual de movimiento">
-    <div id="knob"></div>
+  <div id="touchControls">
+    <div id="joystick" aria-label="Joystick virtual de movimiento">
+      <div id="knob"></div>
+    </div>
+    <div id="dashStatus" role="status" aria-live="off">DASH: LISTO</div>
+    <button id="dash" type="button" aria-label="Dash, esquivar" title="Dash: Espacio o Shift">DASH</button>
+    <button id="attack" type="button" aria-label="Atacar con espada, animación sin daño" title="Atacar: J o F">ATACAR</button>
   </div>
-  <div id="dashStatus" role="status" aria-live="off">DASH: LISTO</div>
-  <button id="dash" type="button" aria-label="Dash, esquivar" title="Dash: Espacio o Shift">DASH</button>
-  <button id="attack" type="button" aria-label="Atacar con espada, animación sin daño" title="Atacar: J o F">ATACAR</button>
-  <div class="hint">Mueve: joystick / WASD / flechas.<br>Dash: Espacio/Shift.<br>Ataca: J/F.<br>Cajas sólidas: sólo en su base.</div>
+  <div class="hint">WASD / flechas · Moverse<br>Espacio / Shift · Dash<br>J / F · Atacar<br>T · Controles táctiles</div>
 
+  <p id="canvasError" hidden>Este visor no permite dibujar el juego. Abre el archivo en una pestaña del navegador.</p>
+  <noscript>Para jugar, abre esta página en el navegador con JavaScript habilitado.</noscript>
   <script>
     "use strict";
 
@@ -255,6 +272,11 @@
 
     const canvas = document.getElementById("game");
     const ctx = canvas.getContext("2d");
+    if (!ctx) {
+      canvas.hidden = true;
+      document.getElementById("canvasError").hidden = false;
+      throw new Error("Canvas 2D no disponible");
+    }
     const stick = document.getElementById("joystick");
     const knob = document.getElementById("knob");
     const speedLabel = document.getElementById("speed");
@@ -263,6 +285,8 @@
     const dashStatus = document.getElementById("dashStatus");
     const hitboxToggle = document.getElementById("hitboxToggle");
     const attackButton = document.getElementById("attack");
+    const touchToggle = document.getElementById("touchToggle");
+    const touchControls = document.getElementById("touchControls");
 
     // Mismas hojas V3 de Gaston: 8 filas S,SE,E,NE,N,NW,W,SW.
     // 320x320 por cuadro; 5 columnas caminar y 3 columnas atacar.
@@ -274,10 +298,27 @@
     // Las hojas están alineadas al suelo: x=160, pies ~y=296.
     const SPRITE_PIVOT_X = 160;
     const SPRITE_PIVOT_Y = 296;
+    // Centro de apoyo entre las suelas, por dirección y cuadro de ataque.
+    // La hoja incluye estocadas amplias: el centro del PNG no es el apoyo.
+    const ATTACK_PIVOTS = [
+      [[161, 296], [173, 296], [162, 296]], // S
+      [[133, 302], [112, 301], [129, 301]], // SE
+      [[132, 296], [102, 305], [132, 295]], // E
+      [[145, 295], [124, 298], [156, 295]], // NE
+      [[160, 296], [165, 296], [160, 296]], // N
+      [[180, 295], null, [185, 295]], // NW
+      [[184, 296], null, [185, 296]], // W
+      [[168, 296], [177, 295], [172, 296]]  // SW
+    ];
+    const ATTACK_IMPACT_ROW = {5: 3, 6: 2};
+    const ATTACK_REACH = 68;
+    const ATTACK_DEPTH_SCALE = 0.68;
+    const ATTACK_HALF_SWEEP = 35 * Math.PI / 180;
+    const ATTACK_START_DISTANCE = 14;
     const spriteWalk = new Image();
     const spriteAttack = new Image();
-    spriteWalk.src = "assets/protagonista_caminar_v3.png";
-    spriteAttack.src = "assets/protagonista_atacar_v3.png";
+    spriteWalk.src = "assets/protagonista_caminar_v3.webp";
+    spriteAttack.src = "assets/protagonista_atacar_v3.webp";
     let walkTime = 0;
     let attackRemaining = 0;
     let attackFacing = -Math.PI / 2;
@@ -286,12 +327,36 @@
       return ((2 - snappedOctant) % 8 + 8) % 8;
     }
     function triggerAttack() {
-      // Sólo animación: aún no se calculan daño, alcance o enemigos.
-      if (dashRemaining > 0) return;
+      if (dashRemaining > 0 || attackRemaining > 0) return;
       attackRemaining = ATTACK_DURATION;
-      attackFacing = player.facing;
+      attackFacing = getInputFacing(getInput());
+      player.facing = attackFacing;
     }
     attackButton.addEventListener("click", triggerAttack);
+
+    function attackFrameIndex() {
+      if (attackRemaining <= 0) return -1;
+      return Math.min(2, Math.floor((ATTACK_DURATION - attackRemaining) / ATTACK_FRAME_TIME));
+    }
+
+    function getAttackHitbox() {
+      if (attackFrameIndex() !== 1) return null;
+      // Ajusta el ángulo antes de proyectar el arco sobre el suelo para
+      // conservar las ocho direcciones de pantalla, incluso en diagonales.
+      const aim = Math.atan2(Math.sin(attackFacing) / ATTACK_DEPTH_SCALE, Math.cos(attackFacing));
+      const points = [[
+        player.x + Math.cos(aim) * ATTACK_START_DISTANCE,
+        player.y + Math.sin(aim) * ATTACK_START_DISTANCE * ATTACK_DEPTH_SCALE
+      ]];
+      for (let step = 0; step <= 12; step++) {
+        const angle = aim + ATTACK_HALF_SWEEP * (step / 6 - 1);
+        points.push([
+          player.x + Math.cos(angle) * ATTACK_REACH,
+          player.y + Math.sin(angle) * ATTACK_REACH * ATTACK_DEPTH_SCALE
+        ]);
+      }
+      return points;
+    }
 
     let showHitboxes = false;
     hitboxToggle.addEventListener("click", () => {
@@ -308,7 +373,7 @@
     let screenWidth = 0;
     let screenHeight = 0;
     let firstResize = true;
-    let boxesInitialized = false;
+    let gadgetsInitialized = false;
 
     const player = {
       x: 0, y: 0,
@@ -342,8 +407,9 @@
         }
       }
       // En el primer resize, sceneBoxes aún no está inicializado.
-      // La ubicación segura se resuelve después de declarar las cajas.
-      if (boxesInitialized) {
+      // La ubicación segura se resuelve después de declarar los gadgets.
+      if (gadgetsInitialized) {
+        layoutGadgets();
         const safe = getSafeSpawn(player.x, player.y);
         if (safe.x !== player.x) player.vx = 0;
         if (safe.y !== player.y) player.vy = 0;
@@ -378,14 +444,44 @@
 
     function releaseJoystick(event) {
       if (event && event.pointerId !== activePointer) return;
+      const pointer = activePointer;
       activePointer = null;
+      if (pointer !== null && stick.hasPointerCapture(pointer)) stick.releasePointerCapture(pointer);
       joystickInput.x = 0;
       joystickInput.y = 0;
       knob.style.transform = "translate3d(0, 0, 0)";
     }
 
+    const TOUCH_PREFERENCE = "labey.touchControlsHidden";
+    function setTouchControlsHidden(hidden) {
+      if (hidden) releaseJoystick();
+      touchControls.hidden = hidden;
+      touchToggle.textContent = hidden ? "MOSTRAR CONTROLES TÁCTILES" : "OCULTAR CONTROLES TÁCTILES";
+      touchToggle.setAttribute("aria-expanded", String(!hidden));
+    }
+
+    try {
+      const saved = localStorage.getItem(TOUCH_PREFERENCE) ?? localStorage.getItem("labey.joystickHidden");
+      setTouchControlsHidden(saved === "true");
+    } catch {
+      setTouchControlsHidden(false);
+    }
+
+    function toggleTouchControls() {
+      setTouchControlsHidden(!touchControls.hidden);
+      try {
+        localStorage.setItem(TOUCH_PREFERENCE, String(touchControls.hidden));
+      } catch {
+        // El botón sigue funcionando durante esta sesión.
+      }
+    }
+    touchToggle.addEventListener("click", (event) => {
+      toggleTouchControls();
+      if (event.detail > 0) touchToggle.blur();
+    });
+
     stick.addEventListener("pointerdown", (event) => {
-      if (activePointer !== null) return; // un dedo controla el joystick
+      if (touchControls.hidden || activePointer !== null) return;
       event.preventDefault();
       activePointer = event.pointerId;
       stick.setPointerCapture(activePointer);
@@ -411,6 +507,10 @@
 
     window.addEventListener("keydown", (event) => {
       const key = event.key.toLowerCase();
+      if (key === "t" && !event.repeat && !event.ctrlKey && !event.altKey && !event.metaKey) {
+        event.preventDefault();
+        toggleTouchControls();
+      }
       if (directions[key]) {
         event.preventDefault();
         pressed.add(key);
@@ -420,9 +520,8 @@
         triggerAttack();
       }
       if ((key === " " || key === "shift") && !event.repeat) {
-        // Respeta el botón Reset cuando tiene foco y se activa con Espacio.
-        if ((event.target === resetButton || event.target === hitboxToggle ||
-             event.target === dashButton) && key === " ") return;
+        // Espacio conserva el comportamiento nativo del botón enfocado.
+        if (key === " " && event.target instanceof HTMLButtonElement) return;
         event.preventDefault();
         triggerDash();
       }
@@ -444,22 +543,22 @@
       return length > 0 ? { x: x / length, y: y / length } : { x: 0, y: 0 };
     }
 
+    function getInputFacing(input) {
+      if (Math.hypot(input.x, input.y) <= 0.05) return player.facing;
+      const octant = Math.PI / 4;
+      return Math.round(Math.atan2(input.y, input.x) / octant) * octant;
+    }
+
     // ===== 5. Dash: velocidad instantánea, orientación y recarga =====
     function triggerDash() {
       // No se permite encadenar Dash ni activarlo durante el cooldown.
       if (dashRemaining > 0 || cooldownRemaining > 0) return;
 
-      const input = getInput();
-      const magnitude = Math.hypot(input.x, input.y);
-      const angle = magnitude > 0.05
-        ? Math.atan2(input.y, input.x) // joystick/teclado tiene prioridad
-        : player.facing;               // en reposo usa la última orientación
-
-      // Dash en una de las ocho direcciones, igual que el indicador.
-      const snapped = Math.round(angle / (Math.PI / 4)) * (Math.PI / 4);
-      player.facing = snapped;
-      dashDirection = { x: Math.cos(snapped), y: Math.sin(snapped) };
+      const angle = getInputFacing(getInput());
+      player.facing = angle;
+      dashDirection = { x: Math.cos(angle), y: Math.sin(angle) };
       dashRemaining = DASH_DURATION;
+      attackRemaining = 0;
       player.vx = dashDirection.x * DASH_SPEED;
       player.vy = dashDirection.y * DASH_SPEED;
       isInvulnerable = true;
@@ -549,12 +648,8 @@
       // movimiento con choque y deslizamiento separado en X/Y.
       moveWithCollisions(player.vx * dt, player.vy * dt, false);
 
-      // Cuantización a 8 direcciones, usando la VELOCIDAD real.
-      // Si se detiene, mantenemos la última orientación sin cambiarla.
-      if (Math.hypot(player.vx, player.vy) > 2) {
-        const angle = Math.atan2(player.vy, player.vx);
-        player.facing = Math.round(angle / (Math.PI / 4)) * (Math.PI / 4);
-      }
+      // La intención manda sobre la inercia y sigue contando al tocar un gadget.
+      if (attackRemaining <= 0) player.facing = getInputFacing(input);
     }
 
     function update(dt) {
@@ -569,7 +664,7 @@
         player.vx = dashDirection.x * DASH_SPEED;
         player.vy = dashDirection.y * DASH_SPEED;
         // Durante el Dash se conserva la velocidad instantánea de 780 px/s,
-        // pero su desplazamiento está sujeto a las mismas paredes y cajas.
+        // pero su desplazamiento está sujeto a las mismas paredes y gadgets.
         const dashHit = moveWithCollisions(player.vx * dashDt, player.vy * dashDt, true);
 
         // Estela continua incluso a 20 FPS: muestreamos cada 12 px.
@@ -607,22 +702,49 @@
       refreshDashUI();
     }
 
-    // ===== 7. Representación 2.5D + cajas con huella física =====
-    // La Y indicada en cada caja es el vértice frontal de su BASE en el piso.
-    // La altura visual NO forma parte de su hitbox: se permite pasar detrás.
-    const sceneBoxes = [
-      { rx: 0.21, ry: 0.36, width: 86,  height: 49, depth: 29, variant: "amber" },
-      { rx: 0.76, ry: 0.43, width: 115, height: 66, depth: 38, variant: "blue" },
-      { rx: 0.33, ry: 0.70, width: 100, height: 58, depth: 31, variant: "blue" },
-      { rx: 0.78, ry: 0.78, width: 82,  height: 47, depth: 27, variant: "amber" }
+    // El sprite y su huella comparten coordenadas relativas al recorte.
+    function gadget(file, rx, ry, width, crop, base) {
+      const image = new Image();
+      image.src = file;
+      return {image, rx, ry, width, height: width * crop[3] / crop[2], crop, base};
+    }
+
+    const gadgets = [
+      gadget("assets/06_BLOQUE_PEQUENO.webp", .23, .37, 83, [285, 277, 225, 172],
+        [[.01,.80], [.47,.99], [.99,.55], [.53,.36]]),
+      gadget("assets/07_BLOQUE_GRANDE.webp", .75, .47, 118, [208, 156, 1117, 746],
+        [[.01,.77], [.70,.99], [.99,.60], [.30,.39]]),
+      gadget("assets/08_COLUMNA.webp", .34, .72, 62, [183, 77, 655, 1375],
+        Array.from({length: 24}, (_, i) => {
+          const angle = i * Math.PI / 12;
+          return [.50 + .48 * Math.cos(angle), .84 + .15 * Math.sin(angle)];
+        }))
     ];
+    let gadgetLayouts = [];
+
+    function layoutGadgets() {
+      gadgetLayouts = gadgets.map(gadget => {
+        const {rx, ry, width, height, base} = gadget;
+        const x = rx * screenWidth - width / 2;
+        const y = ry * screenHeight - height;
+        const points = base.map(([px, py]) => [x + px * width, y + py * height]);
+        const axes = [[1, 0], [0, 1], ...points.map(([px, py], i) => {
+          const [nx, ny] = points[(i + 1) % points.length];
+          return [ny - py, px - nx];
+        })];
+        const spans = axes.map(([dx, dy]) => {
+          const projections = points.map(([px, py]) => px * dx + py * dy);
+          return {dx, dy, min: Math.min(...projections), max: Math.max(...projections)};
+        });
+        return {gadget, x, y, points, spans, bottom: Math.max(...points.map(point => point[1]))};
+      }).sort((a, b) => a.bottom - b.bottom);
+    }
 
     // ===== 8. Hitboxes: físicas EN EL SUELO (no envoltura gráfica) =====
     const MAP_MARGIN = 22;              // borde jugable claramente visible
-    const PLAYER_FOOT_WIDTH = 21;       // hitbox plana: sólo los pies
-    const PLAYER_FOOT_HEIGHT = 11;
-    const PLAYER_FOOT_OFFSET_Y = 10;    // cuadrado 32x32; pies cerca de su base
-    const MAX_COLLISION_STEP = 4;       // evita atravesar cajas en un Dash rápido
+    const PLAYER_FOOT_WIDTH = 28;       // base estable al caminar y al atacar
+    const PLAYER_FOOT_HEIGHT = 13;
+    const MAX_COLLISION_STEP = 4;       // evita atravesar gadgets en un Dash rápido
 
     // Rectangle {left,top,right,bottom} en coordenadas de pantalla.
     function getBounds() {
@@ -634,54 +756,40 @@
       return {
         left: x - PLAYER_FOOT_WIDTH / 2,
         right: x + PLAYER_FOOT_WIDTH / 2,
-        top: y + PLAYER_FOOT_OFFSET_Y - PLAYER_FOOT_HEIGHT / 2,
-        bottom: y + PLAYER_FOOT_OFFSET_Y + PLAYER_FOOT_HEIGHT / 2
+        top: y - PLAYER_FOOT_HEIGHT / 2,
+        bottom: y + PLAYER_FOOT_HEIGHT / 2
       };
-    }
-
-    function getBoxHitbox(box) {
-      const x = box.rx * screenWidth;
-      const frontY = box.ry * screenHeight;
-      // La caja 2.5D se pinta con altura = box.height, pero sólo colisiona
-      // en su HUELLA rectangular sobre el piso (basada en profundidad/depth).
-      // Rectángulo dentro de los vértices del rombo de contacto inferior.
-      return {
-        left: x - box.width * 0.38,
-        right: x + box.width * 0.38,
-        top: frontY - box.depth * 1.75,
-        bottom: frontY - box.depth * 0.25
-      };
-    }
-
-    function rectanglesOverlap(a, b) {
-      // Contactos exactos no son penetración; permite caminar pegado al borde.
-      return a.left < b.right && a.right > b.left &&
-             a.top < b.bottom && a.bottom > b.top;
     }
 
     function isBlockedAt(x, y) {
       const bounds = getBounds();
       const feet = getPlayerHitbox(x, y);
-      // Se mantiene DENTRO el cuadrado visible y también su hitbox de pies.
-      if (x - SIZE / 2 < bounds.left || x + SIZE / 2 > bounds.right ||
-          y - SIZE / 2 < bounds.top || y + SIZE / 2 > bounds.bottom ||
-          feet.left < bounds.left || feet.right > bounds.right ||
+      if (feet.left < bounds.left || feet.right > bounds.right ||
           feet.top < bounds.top || feet.bottom > bounds.bottom) return true;
-      return sceneBoxes.some(box => rectanglesOverlap(feet, getBoxHitbox(box)));
+
+      // Teorema de ejes separadores: rectángulo de pies contra huella convexa.
+      return gadgetLayouts.some(({spans}) => spans.every(({dx, dy, min, max}) => {
+        const center = x * dx + y * dy;
+        const radius = (Math.abs(dx) * PLAYER_FOOT_WIDTH + Math.abs(dy) * PLAYER_FOOT_HEIGHT) / 2;
+        return center + radius > min && center - radius < max;
+      }));
     }
 
     function getSafeSpawn(preferX = screenWidth / 2, preferY = screenHeight / 2) {
       const bounds = getBounds();
-      const pad = SIZE / 2;
-      const cx = Math.max(bounds.left + pad, Math.min(bounds.right - pad, preferX));
-      const cy = Math.max(bounds.top + pad, Math.min(bounds.bottom - pad, preferY));
+      const minX = bounds.left + PLAYER_FOOT_WIDTH / 2;
+      const maxX = bounds.right - PLAYER_FOOT_WIDTH / 2;
+      const minY = bounds.top + PLAYER_FOOT_HEIGHT / 2;
+      const maxY = bounds.bottom - PLAYER_FOOT_HEIGHT / 2;
+      const cx = Math.max(minX, Math.min(maxX, preferX));
+      const cy = Math.max(minY, Math.min(maxY, preferY));
       if (!isBlockedAt(cx, cy)) return {x: cx, y: cy};
-      // Cuando se rota el teléfono, evitar regenerar al jugador DENTRO de una caja.
+      // Cuando se rota el teléfono, evitar regenerar al jugador dentro de un gadget.
       for (let radius = 16; radius <= Math.max(screenWidth, screenHeight); radius += 16) {
         for (let a = 0; a < 24; a++) {
           const angle = 2 * Math.PI * a / 24;
-          const x = Math.max(bounds.left + pad, Math.min(bounds.right - pad, cx + Math.cos(angle) * radius));
-          const y = Math.max(bounds.top + pad, Math.min(bounds.bottom - pad, cy + Math.sin(angle) * radius));
+          const x = Math.max(minX, Math.min(maxX, cx + Math.cos(angle) * radius));
+          const y = Math.max(minY, Math.min(maxY, cy + Math.sin(angle) * radius));
           if (!isBlockedAt(x, y)) return {x, y};
         }
       }
@@ -718,7 +826,7 @@
       return hitX || hitY;
     }
 
-    function drawHitboxes() {
+    function drawHitboxes(attack) {
       if (!showHitboxes) return;
       ctx.save();
       ctx.strokeStyle = "rgba(255, 0, 0, .8)";
@@ -727,17 +835,19 @@
       const area = getBounds();
       ctx.strokeRect(area.left, area.top, area.right - area.left, area.bottom - area.top);
       ctx.setLineDash([]);
-      const boxes = sceneBoxes.map(getBoxHitbox);
-      boxes.push(getPlayerHitbox());
-      boxes.forEach((b, i) => {
-        ctx.fillStyle = i === boxes.length - 1 ? "rgba(255, 0, 0, .16)" : "rgba(255, 0, 0, .08)";
-        ctx.fillRect(b.left, b.top, b.right - b.left, b.bottom - b.top);
-        ctx.strokeRect(b.left, b.top, b.right - b.left, b.bottom - b.top);
-      });
+      for (const {points} of gadgetLayouts) {
+        fillPolygon(points, "rgba(255, 0, 0, .08)", "rgba(255, 0, 0, .8)");
+      }
+      const feet = getPlayerHitbox();
+      ctx.fillStyle = "rgba(255, 0, 0, .16)";
+      ctx.fillRect(feet.left, feet.top, PLAYER_FOOT_WIDTH, PLAYER_FOOT_HEIGHT);
+      ctx.strokeRect(feet.left, feet.top, PLAYER_FOOT_WIDTH, PLAYER_FOOT_HEIGHT);
+      if (attack) fillPolygon(attack, "rgba(126, 54, 230, .28)", "#782ed3");
       ctx.restore();
     }
 
-    boxesInitialized = true;
+    layoutGadgets();
+    gadgetsInitialized = true;
     const initialSpawn = getSafeSpawn(player.x, player.y);
     player.x = initialSpawn.x;
     player.y = initialSpawn.y;
@@ -782,7 +892,7 @@
       }
     }
 
-    // Dibujo de polígonos reutilizable para las caras 2.5D de las cajas.
+    // Dibujo de polígonos reutilizable para las huellas y el alcance de ataque.
     function fillPolygon(points, fill, stroke = "#718aaa") {
       ctx.beginPath();
       ctx.moveTo(points[0][0], points[0][1]);
@@ -795,61 +905,42 @@
       ctx.stroke();
     }
 
-    function drawBox(box) {
-      const x = box.rx * screenWidth;
-      const y = box.ry * screenHeight;
-      const half = box.width / 2;
-      const d = box.depth;
-      const h = box.height;
-      const amber = box.variant === "amber";
+    function drawGadget({gadget, x, y, points}) {
+      const {image, crop, width, height} = gadget;
+      if (!image.complete || !image.naturalWidth) {
+        fillPolygon(points, "#c3cce1");
+        return;
+      }
+      ctx.drawImage(image, ...crop, x, y, width, height);
+    }
 
-      // Contacto con el suelo, con sombras pintadas antes de la caja.
-      ctx.save();
-      ctx.fillStyle = "rgba(18, 34, 57, .20)";
-      ctx.beginPath();
-      ctx.ellipse(x + 5, y - d + 9, half * 1.1, d * 0.65, 0, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.restore();
-
-      // Parte superior: rombo con las cuatro esquinas proyectadas.
-      const back  = [x,        y - h - 2 * d];
-      const right = [x + half, y - h - d];
-      const front = [x,        y - h];
-      const left  = [x - half, y - h - d];
-      const rightBottom = [x + half, y - d];
-      const frontBottom = [x, y];
-      const leftBottom  = [x - half, y - d];
-
-      fillPolygon([left, front, frontBottom, leftBottom], amber ? "#8698af" : "#8ea6c4");
-      fillPolygon([front, right, rightBottom, frontBottom], amber ? "#70829c" : "#7794b8");
-      fillPolygon([back, right, front, left], amber ? "#e2d9c8" : "#dbe9fa", "#758ba8");
-
-      // Franjas y remaches: tecnología sobria con un toque cyan / ámbar.
-      const accent = amber ? "#e5a85a" : "#49cfe6";
-      ctx.strokeStyle = accent;
-      ctx.lineWidth = 2.4;
-      ctx.beginPath();
-      ctx.moveTo(x - half * 0.35, y - h - d);
-      ctx.lineTo(x, y - h - d * .65);
-      ctx.stroke();
-      ctx.fillStyle = "#526985";
-      ctx.beginPath();ctx.arc(x - half * .63, y - h - d, 2.3, 0, Math.PI * 2);ctx.fill();
-      ctx.beginPath();ctx.arc(x + half * .63, y - h - d, 2.3, 0, Math.PI * 2);ctx.fill();
+    function frontEdgeAt({points, spans}, x) {
+      const column = Math.max(spans[0].min, Math.min(spans[0].max, x));
+      let frontY = -Infinity;
+      for (let i = 0; i < points.length; i++) {
+        const [ax, ay] = points[i];
+        const [bx, by] = points[(i + 1) % points.length];
+        if (column < Math.min(ax, bx) || column > Math.max(ax, bx)) continue;
+        const edgeY = ax === bx ? Math.max(ay, by) : ay + (by - ay) * (column - ax) / (bx - ax);
+        frontY = Math.max(frontY, edgeY);
+      }
+      return frontY;
     }
 
     // Posición del sprite basada en el punto de contacto: sólo la base
     // participa en las colisiones físicas. El resto es volumen visual.
-    function drawSprite(image, row, column, x, y, alpha = 1) {
+    function drawSprite({image, row, col, pivot = [SPRITE_PIVOT_X, SPRITE_PIVOT_Y], mirror = false}, x, y, alpha = 1) {
       if (!image.complete || !image.naturalWidth) return false;
       const destSize = FRAME_SIZE * SPRITE_SCALE;
       ctx.save();
       ctx.globalAlpha = alpha;
       ctx.imageSmoothingEnabled = true;
       ctx.imageSmoothingQuality = "high";
+      ctx.translate(x, y);
+      if (mirror) ctx.scale(-1, 1);
       ctx.drawImage(image,
-        column * FRAME_SIZE, row * FRAME_SIZE, FRAME_SIZE, FRAME_SIZE,
-        x - SPRITE_PIVOT_X * SPRITE_SCALE,
-        y - SPRITE_PIVOT_Y * SPRITE_SCALE,
+        col * FRAME_SIZE, row * FRAME_SIZE, FRAME_SIZE, FRAME_SIZE,
+        -pivot[0] * SPRITE_SCALE, -pivot[1] * SPRITE_SCALE,
         destSize, destSize);
       ctx.restore();
       return true;
@@ -860,10 +951,14 @@
         // Sin sprites nuevos: pose de caminata V3 durante el Dash.
         return { image: spriteWalk, row: directionRow(player.facing), col: 2 };
       }
-      if (attackRemaining > 0) {
-        const elapsed = Math.max(0, ATTACK_DURATION - attackRemaining);
-        return { image: spriteAttack, row: directionRow(attackFacing),
-          col: Math.min(2, Math.floor(elapsed / ATTACK_FRAME_TIME)) };
+      const attackCol = attackFrameIndex();
+      if (attackCol !== -1) {
+        const facingRow = directionRow(attackFacing);
+        // En la hoja original, el impacto de W y NW apunta a la derecha.
+        const opposite = attackCol === 1 ? ATTACK_IMPACT_ROW[facingRow] : undefined;
+        const row = opposite ?? facingRow;
+        return { image: spriteAttack, row, col: attackCol,
+          pivot: ATTACK_PIVOTS[row][attackCol], mirror: opposite !== undefined };
       }
       const walking = Math.hypot(player.vx, player.vy) > 3;
       const col = walking ? Math.floor(walkTime / WALK_FRAME_TIME) % 5 : 0;
@@ -872,7 +967,7 @@
 
     function drawPlayer() {
       const dashing = dashRemaining > 0;
-      const feetY = player.y + SIZE / 2;
+      const feetY = player.y;
       // Sombra falsa directamente bajo los pies. Se alarga en Dash.
       ctx.save();
       ctx.translate(player.x + (dashing ? dashDirection.x * 8 : 3),
@@ -886,17 +981,17 @@
       ctx.restore();
 
       // Indicador anterior, ahora discretamente sobre el suelo.
-      const fx = Math.cos(player.facing), fy = Math.sin(player.facing);
+      const facing = attackRemaining > 0 ? attackFacing : player.facing;
+      const fx = Math.cos(facing), fy = Math.sin(facing);
       ctx.beginPath();
       ctx.moveTo(player.x, feetY);
-      ctx.lineTo(player.x + fx * 25, feetY + fy * 14);
+      ctx.lineTo(player.x + fx * 22, feetY + fy * 22);
       ctx.strokeStyle = "rgba(122,67,217,.75)";
       ctx.lineWidth = 3;
       ctx.lineCap = "round";
       ctx.stroke();
 
-      const {image, row, col} = currentSpriteFrame();
-      const drawn = drawSprite(image, row, col, player.x, feetY);
+      const drawn = drawSprite(currentSpriteFrame(), player.x, feetY);
       // Fallback durante la carga / si los PNG no se encuentran.
       if (!drawn) {
         ctx.fillStyle = "#ffffff";
@@ -918,6 +1013,10 @@
     function draw() {
       ctx.clearRect(0, 0, screenWidth, screenHeight);
       drawIsometricFloor();
+      const attack = getAttackHitbox();
+      if (attack && !showHitboxes) {
+        fillPolygon(attack, "rgba(126, 54, 230, .09)", "rgba(120, 46, 211, .35)");
+      }
 
       // Conservamos la estela púrpura, pero ahora contiene siluetas V3
       // que se desvanecen; no altera Dash ni sus hitboxes.
@@ -925,25 +1024,19 @@
         const opacity = Math.pow(ghost.life / TRAIL_LIFETIME, 1.5);
         ctx.fillStyle = `rgba(126, 55, 222, ${opacity * .32})`;
         ctx.fillRect(ghost.x - SIZE/2, ghost.y - SIZE/2, SIZE, SIZE);
-        drawSprite(spriteWalk, directionRow(player.facing), 2,
-                   ghost.x, ghost.y + SIZE / 2, opacity * .34);
+        drawSprite({image: spriteWalk, row: directionRow(player.facing), col: 2},
+                   ghost.x, ghost.y, opacity * .34);
       }
 
-      // Y-Sorting verdadero: de MENOR a MAYOR Y (los cercanos, con Y mayor,
-      // se pintan al final y tapan correctamente a los del fondo).
-      // Para que funcione, compararnos el punto de contacto con el suelo.
-      const renderables = sceneBoxes.map(box => ({
-        sortY: box.ry * screenHeight,
-        render: () => drawBox(box)
-      }));
-      renderables.push({
-        sortY: player.y + SIZE / 2, // pies, no altura del sprite
-        render: drawPlayer
-      });
-      renderables.sort((a, b) => a.sortY - b.sortY);
-      for (const item of renderables) item.render();
+      const foreground = [];
+      for (const layout of gadgetLayouts) {
+        if (player.y >= frontEdgeAt(layout, player.x)) drawGadget(layout);
+        else foreground.push(layout);
+      }
+      drawPlayer();
+      for (const layout of foreground) drawGadget(layout);
       // Debug se dibuja encima SOLO si se solicita; no cambia Y-sorting.
-      drawHitboxes();
+      drawHitboxes(attack);
     }
 
     // ===== 8. Game Loop real: requestAnimationFrame + delta time =====
@@ -977,9 +1070,6 @@
       trail.length = 0;
       refreshDashUI();
       pressed.clear();
-      if (activePointer !== null && stick.hasPointerCapture(activePointer)) {
-        stick.releasePointerCapture(activePointer);
-      }
       releaseJoystick();
       speedLabel.textContent = "0 px/s";
     }

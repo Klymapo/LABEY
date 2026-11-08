@@ -54,15 +54,41 @@
 .npc{left:53%;top:65%}
 .hud,.control,.stick{z-index:2}
 .overlay{z-index:3}
+
+/* LABEY v0.4: campo vertical libre; aros segmentados aprobados sin cambios. */
+main{max-width:660px}
+.arena{
+  aspect-ratio:auto;
+  height:clamp(460px,calc(100dvh - 145px),860px);
+  min-height:460px;
+  background-color:#e7effa;
+  background-image:url("assets/piso-laboratorio-infinito.webp");
+  background-repeat:repeat;
+  background-size:384px 384px;
+  background-position:center;
+  border:1px solid #afc5e5;
+  border-radius:16px;
+}
+.actor.player{width:clamp(64px,15vw,96px);height:auto}
+.actor.enemy,.danger,.npc{transition:none}
+.stick{touch-action:none}
+@media(max-width:600px){
+  main{padding:8px max(8px,env(safe-area-inset-right)) 8px max(8px,env(safe-area-inset-left))}
+  header{margin-bottom:6px}
+  nav{margin-bottom:6px}
+  nav button{padding:6px 9px;min-height:36px}
+  .arena{height:calc(100dvh - 116px);min-height:410px;max-height:none}
+  .note{font-size:12px;margin-top:5px}
+}
 </style>
 <main>
-<header><h1>Labey Blacksmith</h1><small>Interfaz móvil · v0.3</small></header>
+<header><h1>Labey Blacksmith</h1><small>Pruebas verticales · v0.4</small></header>
 <nav aria-label="Frames de prueba">
-<button data-frame="combat" aria-pressed="true">Combate</button>
+<button data-frame="combat" aria-pressed="true">Movimiento + ataque</button>
 <button data-frame="npc" aria-pressed="false">Sala NPC</button>
 <button data-frame="pause" aria-pressed="false">Pausa</button>
 </nav>
-<section class="arena" aria-label="Sala de prueba">
+<section class="arena" aria-label="Campo de pruebas de desplazamiento libre">
 <div class="danger"></div><div class="actor enemy" aria-label="Enemigo">◆</div><div class="npc" hidden>NPC</div>
 <div class="actor player" role="img" aria-label="Labey"></div>
 <div class="hud">♥ <meter aria-label="Vida de Labey" min="0" max="100" value="70"></meter> <span id="life">70 / 100</span></div>
@@ -73,7 +99,7 @@
 <button class="interact control" hidden>Interactuar</button>
 <div class="overlay" hidden><div class="card"><h2></h2><div class="actions"></div></div></div>
 </section>
-<p class="note" role="status">Mueve a Labey con el joystick o WASD. Espacio para atacar. Mayús para esquivar.</p>
+<p class="note" role="status">Muévete sin límites con el joystick o WASD. Ataca con el botón de espada o Espacio; esquiva con las flechas o Mayús.</p>
 </main>
 <script>
 const $ = selector => document.querySelector(selector);
@@ -81,7 +107,8 @@ const player = $('.player'), stick = $('.stick'), knob = $('.knob'), overlay = $
 const dodge = $('.dodge');
 const arena = $('.arena'), note = $('.note'), interact = $('.interact');
 const tabs = [...document.querySelectorAll('[data-frame]')];
-let scene = 'combat', panel = '', life = 70, reward = '', x = 46, y = 64;
+let scene = 'combat', panel = '', life = 70, reward = '', x = 0, y = 0;
+const enemyWorld = [620,-70], npcWorld = [220,110];
 let dx = 0, dy = 0, pointer = null;
 let facingX = 1, facingY = 0, dashLeft = 0, dashX = 0, dashY = 0;
 const attackFrameSeconds = 0.075;
@@ -90,9 +117,20 @@ let animationTime = 0, attackTime = 0, attackRow = 0;
 const keys = new Set();
 const directions = {w:[0,-1], a:[-1,0], s:[0,1], d:[1,0]};
 function update() {
-  const near = Math.hypot(x - 53, y - 65) < 12;
-  player.style.left = x + '%';
-  player.style.top = y + '%';
+  // La cámara sigue los pies del personaje: el escenario es el que se mueve.
+  const centerX = arena.clientWidth * .5, centerY = arena.clientHeight * .54;
+  const near = Math.hypot(x - npcWorld[0], y - npcWorld[1]) < 100;
+  player.style.left = centerX + 'px';
+  player.style.top = centerY + 'px';
+  arena.style.backgroundPosition = Math.round(centerX - x) + 'px ' + Math.round(centerY - y) + 'px';
+  const place = (selector, world) => {
+    const element = $(selector);
+    element.style.left = (centerX + world[0] - x) + 'px';
+    element.style.top = (centerY + world[1] - y) + 'px';
+  };
+  place('.enemy', enemyWorld);
+  place('.danger', [enemyWorld[0],enemyWorld[1]+14]);
+  place('.npc', npcWorld);
   $('#life').textContent = life + ' / 100';
   $('meter').value = life;
   interact.hidden = scene !== 'npc' || !near || !!reward;
@@ -117,8 +155,8 @@ function selectScene(next) {
   stop();
   closePanel();
   scene = next;
-  x = 46;
-  y = 64;
+  x = 0;
+  y = 0;
   attackTime = animationTime = 0;
   $('.enemy').hidden = $('.danger').hidden = next !== 'combat';
   $('.npc').hidden = next !== 'npc';
@@ -233,21 +271,7 @@ addEventListener('keydown', event => {
 });
 addEventListener('keyup', event => keys.delete(event.key.toLowerCase()));
 addEventListener('blur', stop);
-// Coordinates correspond to the feet of the sprite on the approved room illustration.
-const walkable = [[7,21],[14,14],[39,27],[36,44],[44,49],[91,68],
-  [88,75],[81,90],[53,82],[11,63],[8,57],[9,34]];
-const obstacles = [[25,31,4,3],[42,59,2.6,3.5],[66,71,6,4]];
-function canStand(px, py) {
-  let inside = false;
-  for (let i = 0, j = walkable.length - 1; i < walkable.length; j = i++) {
-    const [ax, ay] = walkable[i], [bx, by] = walkable[j];
-    if ((ay > py) !== (by > py) && px < (bx - ax) * (py - ay) / (by - ay) + ax) {
-      inside = !inside;
-    }
-  }
-  return inside && !obstacles.some(([ox, oy, rx, ry]) =>
-    ((px - ox) / rx) ** 2 + ((py - oy) / ry) ** 2 < 1);
-}
+// Campo infinito sin colisiones: reservamos las salas cerradas para otra prueba.
 let last = 0;
 function tick(time) {
   const dt = Math.min(32, time - last) / 1000;
@@ -260,10 +284,8 @@ function tick(time) {
       const step = dashing ? 560 * Math.min(dt, dashLeft) : 130 * dt;
       facingX = dashing ? dashX : vx;
       facingY = dashing ? dashY : vy;
-      const nextX = x + facingX * step / arena.clientWidth * 100;
-      const nextY = y + facingY * step / arena.clientHeight * 100;
-      if (canStand(nextX, y)) x = nextX;
-      if (canStand(x, nextY)) y = nextY;
+      x += facingX * step;
+      y += facingY * step;
       dashLeft = Math.max(0, dashLeft - dt);
       if (!dashLeft) player.classList.remove('dashing');
       update();

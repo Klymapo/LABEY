@@ -1,0 +1,907 @@
+<!doctype html>
+<html lang="es-MX">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
+  <meta name="theme-color" content="#eaf1fa">
+  <title>LABEY · Paso 4 · Colisiones isométricas + Dash</title>
+  <style>
+    :root {
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      color: #21324e;
+      background: #eaf1fa;
+    }
+
+    * { box-sizing: border-box; }
+    html, body { width: 100%; height: 100%; margin: 0; overflow: hidden; }
+    body { overscroll-behavior: none; user-select: none; -webkit-user-select: none; }
+
+    /* El suelo, las cajas y el protagonista ahora se dibujan en Canvas.
+       No hay imágenes ni sprites: se mantiene un único archivo offline. */
+    #game {
+      display: block;
+      width: 100vw;
+      height: 100dvh;
+      background: #e7eff9;
+      touch-action: none;
+    }
+
+    .topbar {
+      position: fixed;
+      top: max(16px, env(safe-area-inset-top));
+      left: max(16px, env(safe-area-inset-left));
+      right: max(16px, env(safe-area-inset-right));
+      display: flex;
+      align-items: start;
+      justify-content: space-between;
+      gap: 14px;
+      pointer-events: none;
+    }
+    .topActions { display: flex; flex-direction: column; align-items: flex-end; gap: 7px; flex-shrink: 0; }
+    .topbar > div:first-child { min-width: 0; }
+    .title { font-weight: 800; letter-spacing: .12em; font-size: 13px; }
+    .subtitle { margin-top: 4px; color: #687c9a; font-size: 12px; }
+    #speed { margin-top: 9px; font: 600 12px ui-monospace, monospace; color: #5e4599; }
+
+    #reset {
+      pointer-events: auto;
+      border: 1px solid #aebfdb;
+      border-radius: 12px;
+      background: #ffffffed;
+      color: #49377c;
+      font: 700 13px system-ui, sans-serif;
+      padding: 11px 16px;
+      min-height: 44px;
+      cursor: pointer;
+      box-shadow: 0 3px 12px #40567619;
+    }
+    #hitboxToggle {
+      pointer-events: auto;
+      padding: 8px 10px;
+      min-height: 40px;
+      max-width: 146px;
+      border: 1px solid #bb6060;
+      border-radius: 10px;
+      background: #ffffffed;
+      color: #b04141;
+      font: 750 11px system-ui, sans-serif;
+      cursor: pointer;
+    }
+    #hitboxToggle[aria-pressed="true"] { background: #a83232; color: white; }
+    #hitboxToggle:focus-visible { outline: 3px solid #cc3939; outline-offset: 2px; }
+    @media (min-width: 700px) { .topActions { flex-direction: row; align-items: start; } }
+    @media (max-width: 380px) {
+      .topbar { gap: 8px; }
+      #hitboxToggle { max-width: 128px; font-size: 10px; }
+      #reset { padding: 8px 11px; }
+      .title { font-size: 11px; }
+    }
+    #reset:active { transform: scale(.97); }
+    #reset:focus-visible { outline: 3px solid #885ae2; outline-offset: 3px; }
+
+    /* Joystick: Pointer Events funcionan con toque, lápiz y ratón. */
+    #joystick {
+      position: fixed;
+      bottom: max(26px, calc(env(safe-area-inset-bottom) + 20px));
+      left: max(24px, calc(env(safe-area-inset-left) + 16px));
+      width: 136px;
+      height: 136px;
+      border: 3px solid #9e8abf;
+      border-radius: 50%;
+      background: radial-gradient(circle, #ffffffc7 0 42%, #e2d9f4c9 75%, #bcb1d1b0 100%);
+      box-shadow: 0 5px 18px #39425d26, inset 0 0 0 7px #ffffff7a;
+      touch-action: none;
+      cursor: grab;
+      -webkit-tap-highlight-color: transparent;
+    }
+    #joystick:active { cursor: grabbing; }
+    #joystick::after {
+      content: "";
+      position: absolute;
+      inset: 15px;
+      border: 1px dashed #aa9bbd;
+      border-radius: 50%;
+      pointer-events: none;
+    }
+    #knob {
+      position: absolute;
+      left: 50%; top: 50%;
+      width: 56px; height: 56px;
+      margin-left: -28px; margin-top: -28px;
+      border-radius: 50%;
+      border: 3px solid #f8f6ff;
+      background: radial-gradient(circle at 35% 28%, #b7a1ef, #6d51ac);
+      box-shadow: 0 4px 12px #4c34734a;
+      transform: translate3d(0, 0, 0);
+      pointer-events: none;
+    }
+    /* Dash circular, colocado a la derecha sin tapar el joystick. */
+    #dash {
+      --charge: 360deg;
+      position: fixed;
+      bottom: max(39px, calc(env(safe-area-inset-bottom) + 33px));
+      right: max(28px, calc(env(safe-area-inset-right) + 18px));
+      width: 106px;
+      height: 106px;
+      padding: 0;
+      border: 3px solid #9e8abf;
+      border-radius: 50%;
+      background: radial-gradient(circle at 36% 30%, #faf6ff, #d8c9f2 65%, #a78bcf);
+      box-shadow: 0 5px 18px #39425d26, inset 0 0 0 7px #ffffff7a;
+      color: #49337e;
+      font: 900 18px system-ui, sans-serif;
+      letter-spacing: .07em;
+      cursor: pointer;
+      touch-action: manipulation;
+      -webkit-tap-highlight-color: transparent;
+    }
+    #dash::before {
+      content: "";
+      position: absolute;
+      inset: -9px;
+      border-radius: 50%;
+      background: conic-gradient(#8746db var(--charge), #aeb4c980 0);
+      -webkit-mask: radial-gradient(farthest-side, transparent calc(100% - 7px), #000 calc(100% - 6px));
+      mask: radial-gradient(farthest-side, transparent calc(100% - 7px), #000 calc(100% - 6px));
+      pointer-events: none;
+    }
+    #dash:disabled { cursor: default; filter: saturate(.48) brightness(.9); }
+    #dash:active:not(:disabled) { transform: scale(.96); }
+    #dash:focus-visible { outline: 3px solid #8753d7; outline-offset: 11px; }
+    #dashStatus {
+      position: fixed;
+      bottom: max(164px, calc(env(safe-area-inset-bottom) + 157px));
+      right: max(16px, env(safe-area-inset-right));
+      width: 158px;
+      text-align: center;
+      font: 800 12px system-ui, sans-serif;
+      letter-spacing: .03em;
+      color: #5a378f;
+      background: #fffefdde;
+      padding: 7px 5px;
+      border: 1px solid #d6c8ee;
+      border-radius: 9px;
+      box-shadow: 0 2px 8px #4e58821a;
+      pointer-events: none;
+    }
+    #dashStatus.recharging { color: #6d718a; }
+    #dashStatus.active { color: #813ce2; }
+    .hint {
+      position: fixed;
+      bottom: max(207px, calc(env(safe-area-inset-bottom) + 198px));
+      right: max(18px, env(safe-area-inset-right));
+      max-width: 154px;
+      text-align: right;
+      color: #71819b;
+      font-size: 11px;
+      line-height: 1.5;
+      pointer-events: none;
+    }
+    @media (max-width: 600px) {
+      .hint { display: none; } /* evita tapar cajas y controles en móviles */
+    }
+    @media (max-width: 380px) {
+      #joystick { width: 118px; height: 118px; }
+      #knob { width: 50px; height: 50px; margin: -25px 0 0 -25px; }
+      #dash { width: 92px; height: 92px; font-size: 16px; }
+      #dashStatus { bottom: max(148px, calc(env(safe-area-inset-bottom) + 140px)); width: 136px; }
+      .hint { bottom: max(190px, calc(env(safe-area-inset-bottom) + 182px)); max-width: 130px; }
+    }
+  </style>
+</head>
+<body>
+  <canvas id="game" aria-label="Campo isométrico de prueba con movimiento y dash"></canvas>
+
+  <div class="topbar">
+    <div>
+      <div class="title">LABEY // MOVIMIENTO + DASH · 2.5D</div>
+      <div class="subtitle">Paso 4 · Hitboxes, límites y deslizamiento</div>
+      <div id="speed" aria-live="off">0 px/s</div>
+    </div>
+    <div class="topActions">
+      <button id="reset" type="button" aria-label="Regresar al centro">↺ Reset</button>
+      <button id="hitboxToggle" type="button" aria-pressed="false">MOSTRAR HITBOXES</button>
+    </div>
+  </div>
+
+  <div id="joystick" aria-label="Joystick virtual de movimiento">
+    <div id="knob"></div>
+  </div>
+  <div id="dashStatus" role="status" aria-live="off">DASH: LISTO</div>
+  <button id="dash" type="button" aria-label="Dash, esquivar" title="Dash: Espacio o Shift">DASH</button>
+  <div class="hint">Mueve: joystick / WASD / flechas.<br>Dash: Espacio o Shift.<br>Cajas sólidas: solo en su base.</div>
+
+  <script>
+    "use strict";
+
+    // ===== 1. Parámetros de Game Feel (ajustables) =====
+    const MAX_SPEED = 260;       // píxeles/segundo, sin turbo diagonal
+    const ACCELERATION = 1200;   // píxeles/segundo²
+    const FRICTION = 6.5;        // pérdida exponencial de velocidad al soltar
+    const DEAD_ZONE = 0.10;      // ignora pequeños toques cerca del centro
+    const SIZE = 32;             // cuadrado del jugador: 32 × 32
+
+    const DASH_SPEED = 780;      // impulso instantáneo en px/s
+    const DASH_DURATION = 0.20;  // segundos invulnerable / en impulso
+    const DASH_COOLDOWN = 0.80;  // segundos de recarga DESPUÉS del impulso
+    const DASH_EXIT_SPEED = 130; // deslizamiento al terminar el Dash
+    const TRAIL_LIFETIME = 0.27; // segundos para desvanecer la estela
+    const TRAIL_SPACING = 12;    // espacio entre los cuadrados de la estela
+
+    // Variable GLOBAL deliberada. Podrá usarse en futuras colisiones.
+    // Al declarar 'var' en un script clásico, también está en window.
+    var isInvulnerable = false;
+
+    const canvas = document.getElementById("game");
+    const ctx = canvas.getContext("2d");
+    const stick = document.getElementById("joystick");
+    const knob = document.getElementById("knob");
+    const speedLabel = document.getElementById("speed");
+    const resetButton = document.getElementById("reset");
+    const dashButton = document.getElementById("dash");
+    const dashStatus = document.getElementById("dashStatus");
+    const hitboxToggle = document.getElementById("hitboxToggle");
+    let showHitboxes = false;
+    hitboxToggle.addEventListener("click", () => {
+      showHitboxes = !showHitboxes;
+      hitboxToggle.setAttribute("aria-pressed", String(showHitboxes));
+      hitboxToggle.textContent = showHitboxes ? "OCULTAR HITBOXES" : "MOSTRAR HITBOXES";
+    });
+
+    let dashRemaining = 0;
+    let cooldownRemaining = 0;
+    let dashDirection = { x: 0, y: -1 };
+    const trail = [];
+
+    let screenWidth = 0;
+    let screenHeight = 0;
+    let firstResize = true;
+    let boxesInitialized = false;
+
+    const player = {
+      x: 0, y: 0,
+      vx: 0, vy: 0,
+      facing: -Math.PI / 2 // orientación inicial: arriba
+    };
+
+    // ===== 2. Canvas ajustado a pantalla y pantallas de alta densidad =====
+    function resizeCanvas() {
+      const previousW = screenWidth;
+      const previousH = screenHeight;
+      screenWidth = window.innerWidth;
+      screenHeight = window.innerHeight;
+      const dpr = Math.min(window.devicePixelRatio || 1, 2);
+      canvas.width = Math.round(screenWidth * dpr);
+      canvas.height = Math.round(screenHeight * dpr);
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+
+      if (firstResize) {
+        player.x = screenWidth / 2;
+        player.y = screenHeight / 2;
+        firstResize = false;
+      } else {
+        // Mantiene la misma posición relativa al centro al rotar el móvil.
+        player.x += (screenWidth - previousW) / 2;
+        player.y += (screenHeight - previousH) / 2;
+        // La estela conserva su posición relativa tras una rotación de pantalla.
+        for (const ghost of trail) {
+          ghost.x += (screenWidth - previousW) / 2;
+          ghost.y += (screenHeight - previousH) / 2;
+        }
+      }
+      // En el primer resize, sceneBoxes aún no está inicializado.
+      // La ubicación segura se resuelve después de declarar las cajas.
+      if (boxesInitialized) {
+        const safe = getSafeSpawn(player.x, player.y);
+        if (safe.x !== player.x) player.vx = 0;
+        if (safe.y !== player.y) player.vy = 0;
+        player.x = safe.x;
+        player.y = safe.y;
+      }
+    }
+    window.addEventListener("resize", resizeCanvas);
+    resizeCanvas();
+
+    // ===== 3. Joystick virtual: toque + mouse con Pointer Events =====
+    let activePointer = null;
+    const joystickInput = { x: 0, y: 0 };
+
+    function moveJoystick(clientX, clientY) {
+      const bounds = stick.getBoundingClientRect();
+      const radius = bounds.width / 2 - knob.offsetWidth / 2 - 5;
+      const dx = clientX - (bounds.left + bounds.width / 2);
+      const dy = clientY - (bounds.top + bounds.height / 2);
+      const distance = Math.hypot(dx, dy);
+      const limited = Math.min(distance, radius);
+      const nx = distance > 0 ? dx / distance : 0;
+      const ny = distance > 0 ? dy / distance : 0;
+
+      knob.style.transform = `translate3d(${nx * limited}px, ${ny * limited}px, 0)`;
+
+      // Magnitud analógica de 0 a 1; se elimina la zona muerta.
+      const amount = Math.max(0, (limited / radius - DEAD_ZONE) / (1 - DEAD_ZONE));
+      joystickInput.x = nx * amount;
+      joystickInput.y = ny * amount;
+    }
+
+    function releaseJoystick(event) {
+      if (event && event.pointerId !== activePointer) return;
+      activePointer = null;
+      joystickInput.x = 0;
+      joystickInput.y = 0;
+      knob.style.transform = "translate3d(0, 0, 0)";
+    }
+
+    stick.addEventListener("pointerdown", (event) => {
+      if (activePointer !== null) return; // un dedo controla el joystick
+      event.preventDefault();
+      activePointer = event.pointerId;
+      stick.setPointerCapture(activePointer);
+      moveJoystick(event.clientX, event.clientY);
+    });
+    stick.addEventListener("pointermove", (event) => {
+      if (event.pointerId !== activePointer) return;
+      event.preventDefault();
+      moveJoystick(event.clientX, event.clientY);
+    });
+    stick.addEventListener("pointerup", releaseJoystick);
+    stick.addEventListener("pointercancel", releaseJoystick);
+    stick.addEventListener("lostpointercapture", releaseJoystick);
+
+    // ===== 4. Teclado opcional para probar desde PC =====
+    const pressed = new Set();
+    const directions = {
+      w: [0, -1], arrowup: [0, -1],
+      s: [0, 1], arrowdown: [0, 1],
+      a: [-1, 0], arrowleft: [-1, 0],
+      d: [1, 0], arrowright: [1, 0]
+    };
+
+    window.addEventListener("keydown", (event) => {
+      const key = event.key.toLowerCase();
+      if (directions[key]) {
+        event.preventDefault();
+        pressed.add(key);
+      }
+      if ((key === " " || key === "shift") && !event.repeat) {
+        // Respeta el botón Reset cuando tiene foco y se activa con Espacio.
+        if ((event.target === resetButton || event.target === hitboxToggle ||
+             event.target === dashButton) && key === " ") return;
+        event.preventDefault();
+        triggerDash();
+      }
+    });
+    window.addEventListener("keyup", (event) => pressed.delete(event.key.toLowerCase()));
+
+    function getInput() {
+      // Mientras se toca el joystick, éste tiene prioridad sobre el teclado.
+      if (activePointer !== null) return joystickInput;
+
+      let x = 0, y = 0;
+      for (const key of pressed) {
+        const [ax, ay] = directions[key];
+        x += ax;
+        y += ay;
+      }
+      // Normalizar evita que √2 aumente la velocidad diagonal.
+      const length = Math.hypot(x, y);
+      return length > 0 ? { x: x / length, y: y / length } : { x: 0, y: 0 };
+    }
+
+    // ===== 5. Dash: velocidad instantánea, orientación y recarga =====
+    function triggerDash() {
+      // No se permite encadenar Dash ni activarlo durante el cooldown.
+      if (dashRemaining > 0 || cooldownRemaining > 0) return;
+
+      const input = getInput();
+      const magnitude = Math.hypot(input.x, input.y);
+      const angle = magnitude > 0.05
+        ? Math.atan2(input.y, input.x) // joystick/teclado tiene prioridad
+        : player.facing;               // en reposo usa la última orientación
+
+      // Dash en una de las ocho direcciones, igual que el indicador.
+      const snapped = Math.round(angle / (Math.PI / 4)) * (Math.PI / 4);
+      player.facing = snapped;
+      dashDirection = { x: Math.cos(snapped), y: Math.sin(snapped) };
+      dashRemaining = DASH_DURATION;
+      player.vx = dashDirection.x * DASH_SPEED;
+      player.vy = dashDirection.y * DASH_SPEED;
+      isInvulnerable = true;
+
+      // Colocamos un fantasma en el punto de salida para que la estela
+      // sea visible incluso antes del siguiente fotograma.
+      spawnTrail(player.x, player.y);
+      refreshDashUI();
+    }
+
+    function spawnTrail(x, y) {
+      trail.push({ x, y, life: TRAIL_LIFETIME });
+      // Límite defensivo: evita acumulación por FPS bajos o varios dashes.
+      if (trail.length > 80) trail.splice(0, trail.length - 80);
+    }
+
+    function fadeTrail(dt) {
+      for (let i = trail.length - 1; i >= 0; i--) {
+        trail[i].life -= dt;
+        if (trail[i].life <= 0) trail.splice(i, 1);
+      }
+    }
+
+    function refreshDashUI() {
+      let label = "DASH: LISTO";
+      let phase = "ready";
+      let progress = 1;
+      if (dashRemaining > 0) {
+        label = "DASH: ACTIVO";
+        phase = "active";
+        progress = 0;
+      } else if (cooldownRemaining > 0) {
+        label = "DASH: RECARGANDO";
+        phase = "recharging";
+        progress = 1 - cooldownRemaining / DASH_COOLDOWN;
+      }
+      // Una circunferencia púrpura se llena a lo largo de la recarga.
+      dashButton.style.setProperty("--charge", `${Math.round(progress * 360)}deg`);
+      dashButton.disabled = phase !== "ready";
+      dashStatus.className = phase;
+      if (dashStatus.textContent !== label) dashStatus.textContent = label;
+    }
+
+    dashButton.addEventListener("pointerdown", (event) => {
+      event.preventDefault();
+      triggerDash();
+    });
+    // Click adicional: permite activar mediante Enter o con asistencia.
+    dashButton.addEventListener("click", triggerDash);
+
+    // ===== 6. Física normal: delta time, aceleración, fricción y límite =====
+    function updateNormal(dt) {
+      const input = getInput();
+      const hasInput = Math.hypot(input.x, input.y) > 0;
+
+      if (hasInput) {
+        // Nos acercamos GRADUALMENTE a la velocidad deseada.
+        const targetVX = input.x * MAX_SPEED;
+        const targetVY = input.y * MAX_SPEED;
+        const differenceX = targetVX - player.vx;
+        const differenceY = targetVY - player.vy;
+        const distance = Math.hypot(differenceX, differenceY);
+        const change = Math.min(distance, ACCELERATION * dt);
+        if (distance > 0) {
+          player.vx += (differenceX / distance) * change;
+          player.vy += (differenceY / distance) * change;
+        }
+      } else {
+        // Fricción independiente de los FPS: deja un pequeño deslizamiento.
+        const damping = Math.exp(-FRICTION * dt);
+        player.vx *= damping;
+        player.vy *= damping;
+        if (Math.hypot(player.vx, player.vy) < 1) {
+          player.vx = 0;
+          player.vy = 0;
+        }
+      }
+
+      // Límite de velocidad total, también para el movimiento diagonal.
+      const speed = Math.hypot(player.vx, player.vy);
+      if (speed > MAX_SPEED) {
+        player.vx = (player.vx / speed) * MAX_SPEED;
+        player.vy = (player.vy / speed) * MAX_SPEED;
+      }
+
+      // Misma física previa: solo sustituimos la integración libre por
+      // movimiento con choque y deslizamiento separado en X/Y.
+      moveWithCollisions(player.vx * dt, player.vy * dt, false);
+
+      // Cuantización a 8 direcciones, usando la VELOCIDAD real.
+      // Si se detiene, mantenemos la última orientación sin cambiarla.
+      if (Math.hypot(player.vx, player.vy) > 2) {
+        const angle = Math.atan2(player.vy, player.vx);
+        player.facing = Math.round(angle / (Math.PI / 4)) * (Math.PI / 4);
+      }
+    }
+
+    function update(dt) {
+      // La estela siempre envejece, incluso cuando el jugador se detiene.
+      fadeTrail(dt);
+
+      // La fase de Dash se actualiza con un subpaso exacto: si el frame
+      // rebasa los 0.2 s, solo el tiempo SOBRANTE pasa a la física normal.
+      if (dashRemaining > 0) {
+        const dashDt = Math.min(dt, dashRemaining);
+        const oldX = player.x, oldY = player.y;
+        player.vx = dashDirection.x * DASH_SPEED;
+        player.vy = dashDirection.y * DASH_SPEED;
+        // Durante el Dash se conserva la velocidad instantánea de 780 px/s,
+        // pero su desplazamiento está sujeto a las mismas paredes y cajas.
+        const dashHit = moveWithCollisions(player.vx * dashDt, player.vy * dashDt, true);
+
+        // Estela continua incluso a 20 FPS: muestreamos cada 12 px.
+        const distance = Math.hypot(player.x - oldX, player.y - oldY);
+        const count = Math.ceil(distance / TRAIL_SPACING);
+        for (let i = 1; i <= count; i++) {
+          const t = i / count;
+          spawnTrail(oldX + (player.x - oldX) * t,
+                     oldY + (player.y - oldY) * t);
+        }
+
+        dashRemaining = dashHit ? 0 : Math.max(0, dashRemaining - dashDt);
+        if (dashRemaining === 0) {
+          isInvulnerable = false;
+          cooldownRemaining = DASH_COOLDOWN;
+          // En un impacto el Dash se corta en seco (sin inercia residual).
+          // Sin choque, conserva la velocidad de salida aprobada de 130 px/s.
+          player.vx = dashHit ? 0 : dashDirection.x * DASH_EXIT_SPEED;
+          player.vy = dashHit ? 0 : dashDirection.y * DASH_EXIT_SPEED;
+        }
+
+        const leftover = dt - dashDt;
+        if (leftover > 0 && !dashHit) {
+          updateNormal(leftover);
+          cooldownRemaining = Math.max(0, cooldownRemaining - leftover);
+        }
+      } else {
+        updateNormal(dt);
+        cooldownRemaining = Math.max(0, cooldownRemaining - dt);
+      }
+      refreshDashUI();
+    }
+
+    // ===== 7. Representación 2.5D + cajas con huella física =====
+    // La Y indicada en cada caja es el vértice frontal de su BASE en el piso.
+    // La altura visual NO forma parte de su hitbox: se permite pasar detrás.
+    const sceneBoxes = [
+      { rx: 0.21, ry: 0.36, width: 86,  height: 49, depth: 29, variant: "amber" },
+      { rx: 0.76, ry: 0.43, width: 115, height: 66, depth: 38, variant: "blue" },
+      { rx: 0.33, ry: 0.70, width: 100, height: 58, depth: 31, variant: "blue" },
+      { rx: 0.78, ry: 0.78, width: 82,  height: 47, depth: 27, variant: "amber" }
+    ];
+
+    // ===== 8. Hitboxes: físicas EN EL SUELO (no envoltura gráfica) =====
+    const MAP_MARGIN = 22;              // borde jugable claramente visible
+    const PLAYER_FOOT_WIDTH = 21;       // hitbox plana: sólo los pies
+    const PLAYER_FOOT_HEIGHT = 11;
+    const PLAYER_FOOT_OFFSET_Y = 10;    // cuadrado 32x32; pies cerca de su base
+    const MAX_COLLISION_STEP = 4;       // evita atravesar cajas en un Dash rápido
+
+    // Rectangle {left,top,right,bottom} en coordenadas de pantalla.
+    function getBounds() {
+      return {left: MAP_MARGIN, top: MAP_MARGIN,
+              right: screenWidth - MAP_MARGIN, bottom: screenHeight - MAP_MARGIN};
+    }
+
+    function getPlayerHitbox(x = player.x, y = player.y) {
+      return {
+        left: x - PLAYER_FOOT_WIDTH / 2,
+        right: x + PLAYER_FOOT_WIDTH / 2,
+        top: y + PLAYER_FOOT_OFFSET_Y - PLAYER_FOOT_HEIGHT / 2,
+        bottom: y + PLAYER_FOOT_OFFSET_Y + PLAYER_FOOT_HEIGHT / 2
+      };
+    }
+
+    function getBoxHitbox(box) {
+      const x = box.rx * screenWidth;
+      const frontY = box.ry * screenHeight;
+      // La caja 2.5D se pinta con altura = box.height, pero sólo colisiona
+      // en su HUELLA rectangular sobre el piso (basada en profundidad/depth).
+      // Rectángulo dentro de los vértices del rombo de contacto inferior.
+      return {
+        left: x - box.width * 0.38,
+        right: x + box.width * 0.38,
+        top: frontY - box.depth * 1.75,
+        bottom: frontY - box.depth * 0.25
+      };
+    }
+
+    function rectanglesOverlap(a, b) {
+      // Contactos exactos no son penetración; permite caminar pegado al borde.
+      return a.left < b.right && a.right > b.left &&
+             a.top < b.bottom && a.bottom > b.top;
+    }
+
+    function isBlockedAt(x, y) {
+      const bounds = getBounds();
+      const feet = getPlayerHitbox(x, y);
+      // Se mantiene DENTRO el cuadrado visible y también su hitbox de pies.
+      if (x - SIZE / 2 < bounds.left || x + SIZE / 2 > bounds.right ||
+          y - SIZE / 2 < bounds.top || y + SIZE / 2 > bounds.bottom ||
+          feet.left < bounds.left || feet.right > bounds.right ||
+          feet.top < bounds.top || feet.bottom > bounds.bottom) return true;
+      return sceneBoxes.some(box => rectanglesOverlap(feet, getBoxHitbox(box)));
+    }
+
+    function getSafeSpawn(preferX = screenWidth / 2, preferY = screenHeight / 2) {
+      const bounds = getBounds();
+      const pad = SIZE / 2;
+      const cx = Math.max(bounds.left + pad, Math.min(bounds.right - pad, preferX));
+      const cy = Math.max(bounds.top + pad, Math.min(bounds.bottom - pad, preferY));
+      if (!isBlockedAt(cx, cy)) return {x: cx, y: cy};
+      // Cuando se rota el teléfono, evitar regenerar al jugador DENTRO de una caja.
+      for (let radius = 16; radius <= Math.max(screenWidth, screenHeight); radius += 16) {
+        for (let a = 0; a < 24; a++) {
+          const angle = 2 * Math.PI * a / 24;
+          const x = Math.max(bounds.left + pad, Math.min(bounds.right - pad, cx + Math.cos(angle) * radius));
+          const y = Math.max(bounds.top + pad, Math.min(bounds.bottom - pad, cy + Math.sin(angle) * radius));
+          if (!isBlockedAt(x, y)) return {x, y};
+        }
+      }
+      return {x: cx, y: cy}; // pantalla extremadamente pequeña: caso degradado
+    }
+
+    function moveWithCollisions(dx, dy, stopOnAnyHit = false) {
+      // Subpasos cortos incluso con FPS bajos: un Dash no se teletransporta
+      // al otro lado de una hitbox. Se recorren X y Y por separado.
+      const steps = Math.max(1, Math.ceil(Math.max(Math.abs(dx), Math.abs(dy)) / MAX_COLLISION_STEP));
+      const sx = dx / steps, sy = dy / steps;
+      let hitX = false, hitY = false;
+      for (let i = 0; i < steps; i++) {
+        if (!hitX && Math.abs(sx) > 1e-9) {
+          if (isBlockedAt(player.x + sx, player.y)) {
+            hitX = true;
+            player.vx = 0; // choque en eje X: detenerlo de inmediato
+          } else player.x += sx;
+        }
+        if (stopOnAnyHit && hitX) break;
+        if (!hitY && Math.abs(sy) > 1e-9) {
+          if (isBlockedAt(player.x, player.y + sy)) {
+            hitY = true;
+            player.vy = 0; // choque Y; X puede continuar: deslizamiento
+          } else player.y += sy;
+        }
+        if (stopOnAnyHit && hitY) break;
+        if (hitX && hitY) break;
+      }
+      if (stopOnAnyHit && (hitX || hitY)) {
+        player.vx = 0;
+        player.vy = 0;
+      }
+      return hitX || hitY;
+    }
+
+    function drawHitboxes() {
+      if (!showHitboxes) return;
+      ctx.save();
+      ctx.strokeStyle = "rgba(255, 0, 0, .8)";
+      ctx.lineWidth = 2;
+      ctx.setLineDash([8, 5]);
+      const area = getBounds();
+      ctx.strokeRect(area.left, area.top, area.right - area.left, area.bottom - area.top);
+      ctx.setLineDash([]);
+      const boxes = sceneBoxes.map(getBoxHitbox);
+      boxes.push(getPlayerHitbox());
+      boxes.forEach((b, i) => {
+        ctx.fillStyle = i === boxes.length - 1 ? "rgba(255, 0, 0, .16)" : "rgba(255, 0, 0, .08)";
+        ctx.fillRect(b.left, b.top, b.right - b.left, b.bottom - b.top);
+        ctx.strokeRect(b.left, b.top, b.right - b.left, b.bottom - b.top);
+      });
+      ctx.restore();
+    }
+
+    boxesInitialized = true;
+    const initialSpawn = getSafeSpawn(player.x, player.y);
+    player.x = initialSpawn.x;
+    player.y = initialSpawn.y;
+
+    function drawIsometricFloor() {
+      // Gradiente del piso: una sala blanca/azul de laboratorio.
+      const ground = ctx.createLinearGradient(0, 0, 0, screenHeight);
+      ground.addColorStop(0, "#dce7f4");
+      ground.addColorStop(0.62, "#eaf2fb");
+      ground.addColorStop(1, "#f5f9fe");
+      ctx.fillStyle = ground;
+      ctx.fillRect(0, 0, screenWidth, screenHeight);
+
+      // Dos familias de diagonales a ±0.5 crean ROMBOS, no cuadrados.
+      // Al dibujarse en Canvas, el patrón cubre cualquier orientación.
+      const slopeAbs = 0.5;
+      const spacing = 62;
+      ctx.lineWidth = 1.15;
+      for (const sign of [-1, 1]) {
+        const slope = sign * slopeAbs;
+        const bMin = Math.min(0, -slope * screenWidth) - spacing;
+        const bMax = Math.max(screenHeight, screenHeight - slope * screenWidth) + spacing;
+        for (let i = Math.floor(bMin / spacing); i <= Math.ceil(bMax / spacing); i++) {
+          const intercept = i * spacing;
+          const major = i % 5 === 0;
+          ctx.strokeStyle = major ? "rgba(89, 163, 195, 0.42)" : "rgba(117, 150, 187, 0.27)";
+          ctx.lineWidth = major ? 1.8 : 1.1;
+          ctx.beginPath();
+          ctx.moveTo(0, intercept);
+          ctx.lineTo(screenWidth, intercept + slope * screenWidth);
+          ctx.stroke();
+        }
+      }
+
+      // Cruces luminosos decorativos: discretos para no tapar al jugador.
+      ctx.fillStyle = "rgba(86, 187, 210, .35)";
+      for (let y = 112; y < screenHeight; y += 280) {
+        for (let x = 100; x < screenWidth; x += 320) {
+          ctx.fillRect(x - 3, y - 1, 6, 2);
+          ctx.fillRect(x - 1, y - 3, 2, 6);
+        }
+      }
+    }
+
+    // Dibujo de polígonos reutilizable para las caras 2.5D de las cajas.
+    function fillPolygon(points, fill, stroke = "#718aaa") {
+      ctx.beginPath();
+      ctx.moveTo(points[0][0], points[0][1]);
+      for (let i = 1; i < points.length; i++) ctx.lineTo(points[i][0], points[i][1]);
+      ctx.closePath();
+      ctx.fillStyle = fill;
+      ctx.fill();
+      ctx.lineWidth = 1.5;
+      ctx.strokeStyle = stroke;
+      ctx.stroke();
+    }
+
+    function drawBox(box) {
+      const x = box.rx * screenWidth;
+      const y = box.ry * screenHeight;
+      const half = box.width / 2;
+      const d = box.depth;
+      const h = box.height;
+      const amber = box.variant === "amber";
+
+      // Contacto con el suelo, con sombras pintadas antes de la caja.
+      ctx.save();
+      ctx.fillStyle = "rgba(18, 34, 57, .20)";
+      ctx.beginPath();
+      ctx.ellipse(x + 5, y - d + 9, half * 1.1, d * 0.65, 0, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.restore();
+
+      // Parte superior: rombo con las cuatro esquinas proyectadas.
+      const back  = [x,        y - h - 2 * d];
+      const right = [x + half, y - h - d];
+      const front = [x,        y - h];
+      const left  = [x - half, y - h - d];
+      const rightBottom = [x + half, y - d];
+      const frontBottom = [x, y];
+      const leftBottom  = [x - half, y - d];
+
+      fillPolygon([left, front, frontBottom, leftBottom], amber ? "#8698af" : "#8ea6c4");
+      fillPolygon([front, right, rightBottom, frontBottom], amber ? "#70829c" : "#7794b8");
+      fillPolygon([back, right, front, left], amber ? "#e2d9c8" : "#dbe9fa", "#758ba8");
+
+      // Franjas y remaches: tecnología sobria con un toque cyan / ámbar.
+      const accent = amber ? "#e5a85a" : "#49cfe6";
+      ctx.strokeStyle = accent;
+      ctx.lineWidth = 2.4;
+      ctx.beginPath();
+      ctx.moveTo(x - half * 0.35, y - h - d);
+      ctx.lineTo(x, y - h - d * .65);
+      ctx.stroke();
+      ctx.fillStyle = "#526985";
+      ctx.beginPath();ctx.arc(x - half * .63, y - h - d, 2.3, 0, Math.PI * 2);ctx.fill();
+      ctx.beginPath();ctx.arc(x + half * .63, y - h - d, 2.3, 0, Math.PI * 2);ctx.fill();
+    }
+
+    function drawPlayer() {
+      // Sombra falsa: óvalo NEGRO semitransparente debajo del cuadrado.
+      // Durante el Dash se ensancha y se estira hacia el impulso.
+      const dashing = dashRemaining > 0;
+      ctx.save();
+      ctx.translate(player.x + (dashing ? dashDirection.x * 8 : 3),
+                    player.y + SIZE / 2 + (dashing ? 9 : 5));
+      if (dashing) ctx.rotate(Math.atan2(dashDirection.y, dashDirection.x));
+      ctx.scale(dashing ? 1.55 : 1, dashing ? 0.72 : 1);
+      ctx.fillStyle = dashing ? "rgba(14, 10, 30, .28)" : "rgba(10, 15, 31, .26)";
+      ctx.beginPath();
+      ctx.ellipse(0, 0, SIZE * .65, 7, 0, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.restore();
+
+      // Personaje original: se conserva EXACTAMENTE como cuadrado 32x32.
+      ctx.fillStyle = "#ffffff";
+      ctx.fillRect(player.x - SIZE / 2, player.y - SIZE / 2, SIZE, SIZE);
+      ctx.strokeStyle = isInvulnerable ? "#b14dff" : "#6c53a8";
+      ctx.lineWidth = 2;
+      ctx.strokeRect(player.x - SIZE / 2, player.y - SIZE / 2, SIZE, SIZE);
+      if (isInvulnerable) {
+        ctx.strokeStyle = "#b14dff66";
+        ctx.lineWidth = 4;
+        ctx.strokeRect(player.x - SIZE / 2 - 4, player.y - SIZE / 2 - 4,
+                       SIZE + 8, SIZE + 8);
+      }
+
+      // La flecha de ocho direcciones NO cambia de lógica.
+      const fx = Math.cos(player.facing);
+      const fy = Math.sin(player.facing);
+      ctx.beginPath();
+      ctx.moveTo(player.x, player.y);
+      ctx.lineTo(player.x + fx * 25, player.y + fy * 25);
+      ctx.strokeStyle = "#7a43d9";
+      ctx.lineWidth = 4;
+      ctx.lineCap = "round";
+      ctx.stroke();
+    }
+
+    function draw() {
+      ctx.clearRect(0, 0, screenWidth, screenHeight);
+      drawIsometricFloor();
+
+      // Estela de Dash original (cuadros morados con fade).
+      // Se dibuja por debajo de los objetos del escenario.
+      for (const ghost of trail) {
+        const opacity = Math.pow(ghost.life / TRAIL_LIFETIME, 1.5) * 0.5;
+        ctx.fillStyle = `rgba(126, 55, 222, ${opacity})`;
+        ctx.fillRect(ghost.x - SIZE / 2, ghost.y - SIZE / 2, SIZE, SIZE);
+      }
+
+      // Y-Sorting verdadero: de MENOR a MAYOR Y (los cercanos, con Y mayor,
+      // se pintan al final y tapan correctamente a los del fondo).
+      // Para que funcione, compararnos el punto de contacto con el suelo.
+      const renderables = sceneBoxes.map(box => ({
+        sortY: box.ry * screenHeight,
+        render: () => drawBox(box)
+      }));
+      renderables.push({
+        sortY: player.y + SIZE / 2,
+        render: drawPlayer
+      });
+      renderables.sort((a, b) => a.sortY - b.sortY);
+      for (const item of renderables) item.render();
+      // Debug se dibuja encima SOLO si se solicita; no cambia Y-sorting.
+      drawHitboxes();
+    }
+
+    // ===== 8. Game Loop real: requestAnimationFrame + delta time =====
+    let previousTime = 0;
+    function frame(timestamp) {
+      if (!previousTime) previousTime = timestamp;
+      // Limitar el salto tras volver de otra pestaña evita teletransportes.
+      const dt = Math.min((timestamp - previousTime) / 1000, 0.05);
+      previousTime = timestamp;
+      update(dt);
+      draw();
+      speedLabel.textContent = `${Math.round(Math.hypot(player.vx, player.vy))} px/s`;
+      requestAnimationFrame(frame);
+    }
+    requestAnimationFrame(frame);
+
+    // ===== 9. Reset y seguridad de entrada =====
+    function resetPlayer() {
+      const spawn = getSafeSpawn();
+      player.x = spawn.x;
+      player.y = spawn.y;
+      player.vx = 0;
+      player.vy = 0;
+      player.facing = -Math.PI / 2;
+      dashRemaining = 0;
+      cooldownRemaining = 0;
+      isInvulnerable = false;
+      trail.length = 0;
+      refreshDashUI();
+      pressed.clear();
+      if (activePointer !== null && stick.hasPointerCapture(activePointer)) {
+        stick.releasePointerCapture(activePointer);
+      }
+      releaseJoystick();
+      speedLabel.textContent = "0 px/s";
+    }
+    resetButton.addEventListener("click", resetPlayer);
+
+    function cancelInputs() {
+      pressed.clear();
+      releaseJoystick();
+      // No permitir invulnerabilidad eterna al minimizar la pestaña.
+      if (dashRemaining > 0) {
+        dashRemaining = 0;
+        isInvulnerable = false;
+        cooldownRemaining = DASH_COOLDOWN;
+        player.vx = dashDirection.x * DASH_EXIT_SPEED;
+        player.vy = dashDirection.y * DASH_EXIT_SPEED;
+        refreshDashUI();
+      }
+    }
+    window.addEventListener("blur", cancelInputs);
+    document.addEventListener("visibilitychange", () => {
+      if (document.hidden) {
+        cancelInputs();
+        previousTime = 0;
+      }
+    });
+  </script>
+</body>
+</html>
